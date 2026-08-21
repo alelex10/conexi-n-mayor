@@ -137,8 +137,20 @@
     border-color: var(--color-border);
   }
 
+  html {
+    font-size: 18px;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  textarea:focus-visible,
+  input:focus-visible {
+    outline: 4px solid var(--color-ring);
+    outline-offset: 3px;
   }
 }
