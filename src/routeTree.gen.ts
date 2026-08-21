@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SugerenciasRouteImport } from './routes/sugerencias'
+import { Route as ActividadIdRouteImport } from './routes/actividad.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SugerenciasRoute = SugerenciasRouteImport.update({
+  id: '/sugerencias',
+  path: '/sugerencias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActividadIdRoute = ActividadIdRouteImport.update({
+  id: '/actividad/$id',
+  path: '/actividad/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/sugerencias': typeof SugerenciasRoute
+  '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/sugerencias': typeof SugerenciasRoute
+  '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/sugerencias': typeof SugerenciasRoute
+  '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/sugerencias' | '/actividad/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/sugerencias' | '/actividad/$id'
+  id: '__root__' | '/' | '/sugerencias' | '/actividad/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SugerenciasRoute: typeof SugerenciasRoute
+  ActividadIdRoute: typeof ActividadIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sugerencias': {
+      id: '/sugerencias'
+      path: '/sugerencias'
+      fullPath: '/sugerencias'
+      preLoaderRoute: typeof SugerenciasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/actividad/$id': {
+      id: '/actividad/$id'
+      path: '/actividad/$id'
+      fullPath: '/actividad/$id'
+      preLoaderRoute: typeof ActividadIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SugerenciasRoute: SugerenciasRoute,
+  ActividadIdRoute: ActividadIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
