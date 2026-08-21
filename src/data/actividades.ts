@@ -109,8 +109,8 @@ export const ACTIVIDADES: Actividad[] = [
 ];
 
 export function formatearFecha(fechaISO: string) {
-  const [a, m, d] = fechaISO.split("-").map(Number);
-  const fecha = new Date(a, m - 1, d);
+  const partes = fechaISO.split("-").map(Number);
+  const fecha = new Date(partes[0] ?? 2026, (partes[1] ?? 1) - 1, partes[2] ?? 1);
   const texto = fecha.toLocaleDateString("es-CL", {
     weekday: "long",
     day: "numeric",
