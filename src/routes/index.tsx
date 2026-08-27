@@ -46,7 +46,7 @@ function CiudadVivaMayor() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-[#FFFBEB]">
+    <div className="flex min-h-dvh flex-col bg-background">
       {/* Header azul */}
       <header className="sticky top-0 z-10 flex items-center justify-between bg-[#1E6CB4] px-4 py-3 shadow-sm">
         <div className="flex items-center gap-3">
