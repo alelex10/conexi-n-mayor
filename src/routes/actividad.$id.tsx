@@ -1,15 +1,12 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, Bath, Car, Map, Phone, Bus } from "lucide-react";
-import {
-  ACTIVIDADES,
-  RADIO_TAXIS,
-  formatearDistancia,
-  formatearFecha,
-} from "@/data/actividades";
+
+import { obtenerActividad } from "@/lib/actividades.functions";
+import { RADIO_TAXIS, formatearDistancia, formatearFecha } from "@/data/actividades";
 
 export const Route = createFileRoute("/actividad/$id")({
-  loader: ({ params }) => {
-    const actividad = ACTIVIDADES.find((a) => a.id === params.id);
+  loader: async ({ params }) => {
+    const actividad = await obtenerActividad({ data: { id: params.id } });
     if (!actividad) throw notFound();
     return { actividad };
   },
@@ -80,21 +77,20 @@ function Detalle() {
     <div className="mx-auto w-full max-w-2xl px-4 pb-16">
       <Link
         to="/"
-        className="mt-6 inline-flex min-h-14 items-center gap-2 rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground"
+        className="mt-6 inline-flex min-h-14 items-center gap-2 rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <ArrowLeft aria-hidden className="size-6" /> Volver
       </Link>
 
-      <h1 className="mt-6 text-4xl font-extrabold leading-tight text-foreground">
-        {actividad.nombre}
-      </h1>
+      <h1 className="mt-6 text-4xl font-extrabold leading-tight text-foreground">{actividad.nombre}</h1>
+
+      <p className="mt-2 text-lg font-medium text-muted-foreground">{actividad.categoria}</p>
 
       <p
         className={`mt-4 inline-block rounded-lg px-4 py-2 text-xl font-bold ${
-          actividad.gratuito
-            ? "bg-primary text-primary-foreground"
-            : "bg-secondary text-secondary-foreground"
+          actividad.gratuito ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
         }`}
+        aria-label={actividad.gratuito ? "Actividad gratuita" : `Actividad de pago ${actividad.precio}`}
       >
         {actividad.gratuito ? "Gratuito" : `De pago · ${actividad.precio}`}
       </p>
@@ -129,7 +125,7 @@ function Detalle() {
         href={mapsUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-4 flex min-h-16 items-center justify-center gap-3 rounded-xl bg-primary px-4 text-2xl font-bold text-primary-foreground"
+        className="mt-4 flex min-h-16 items-center justify-center gap-3 rounded-xl bg-primary px-4 text-2xl font-bold text-primary-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Map aria-hidden className="size-7" /> Abrir en Google Maps
       </a>
@@ -140,7 +136,7 @@ function Detalle() {
           <a
             key={t.telefono}
             href={`tel:${t.telefono}`}
-            className="flex min-h-16 items-center justify-center gap-3 rounded-xl bg-accent px-4 text-2xl font-bold text-accent-foreground"
+            className="flex min-h-16 items-center justify-center gap-3 rounded-xl bg-accent px-4 text-2xl font-bold text-accent-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <Phone aria-hidden className="size-7" /> Llamar a {t.nombre}
           </a>
@@ -149,7 +145,7 @@ function Detalle() {
           href={uberUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex min-h-16 items-center justify-center rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground"
+          className="flex min-h-16 items-center justify-center rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           Pedir Uber a esta actividad
         </a>
@@ -157,7 +153,7 @@ function Detalle() {
           href={cabifyUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex min-h-16 items-center justify-center rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground"
+          className="flex min-h-16 items-center justify-center rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           Pedir Cabify a esta actividad
         </a>

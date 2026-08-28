@@ -1,12 +1,14 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Clientes de Supabase para uso EXCLUSIVO en servidor (server functions).
- * Las claves viven en secretos del proyecto: SB_URL, SB_PUBLISHABLE_KEY, SB_SECRET_KEY.
+ * Supabase clients — SERVER ONLY.
+ * Never import this file from client components. Secrets must stay on the server.
+ * Expected env (server-only, never VITE_): SB_URL, SB_PUBLISHABLE_KEY, SB_SECRET_KEY
+ * New Supabase keys use prefixes sb_publishable_ / sb_secret_ (non-JWT).
  */
 
-// Las claves nuevas de Supabase (sb_publishable_ / sb_secret_) no son JWT:
-// hay que enviarlas en el header `apikey` y quitar el `Authorization: Bearer`.
+// New Supabase keys (sb_publishable_ / sb_secret_) are not JWTs:
+// send them via `apikey` header and strip the default `Authorization: Bearer`.
 function keyFetch(key: string): typeof fetch {
   return (input, init) => {
     const headers = new Headers(init?.headers);
@@ -18,23 +20,34 @@ function keyFetch(key: string): typeof fetch {
   };
 }
 
-function buildClient(key: string): SupabaseClient {
-  const url = process.env["SB_URL"];
-  if (!url || !key) {
-    throw new Error("Faltan las variables SB_URL / claves de Supabase en el servidor.");
+function requireEnv(name: "SB_URL" | "SB_PUBLISHABLE_KEY" | "SB_SECRET_KEY"): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `[supabase.server] Missing required server secret "${name}". ` +
+        `Set it in your runtime env (Cloudflare / Nitro / .env server-only). ` +
+        `Never use VITE_ / SUPABASE_ prefixes — this project uses SB_* on purpose. ` +
+        `If you are building locally without Supabase, the app will fall back to empty data.`,
+    );
   }
+  return value;
+}
+
+function buildClient(key: string): SupabaseClient {
+  const url = requireEnv("SB_URL");
+  if (!key) throw new Error("[supabase.server] Supabase key is empty.");
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { fetch: keyFetch(key) },
   });
 }
 
-/** Cliente público (respeta RLS). Úsalo para lecturas públicas. */
-export function getPublicClient() {
-  return buildClient(process.env["SB_PUBLISHABLE_KEY"] ?? "");
+/** Public client (respects RLS). Use for public reads like actividades. */
+export function getPublicClient(): SupabaseClient {
+  return buildClient(requireEnv("SB_PUBLISHABLE_KEY"));
 }
 
-/** Cliente con clave secreta (omite RLS). Solo para operaciones privilegiadas. */
-export function getAdminClient() {
-  return buildClient(process.env["SB_SECRET_KEY"] ?? "");
+/** Privileged client (bypasses RLS via service_role). Only for server writes like sugerencias. */
+export function getAdminClient(): SupabaseClient {
+  return buildClient(requireEnv("SB_SECRET_KEY"));
 }

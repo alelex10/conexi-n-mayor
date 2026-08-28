@@ -42,40 +42,67 @@ function aActividad(fila: FilaActividad): Actividad {
 const COLUMNAS =
   "id, nombre, fecha, hora, lugar, direccion, gratuito, precio, distancia_metros, bano, estacionamiento, como_llegar, categoria, descripcion";
 
+/** Returns true if the error is due to missing SB_* env (build without secrets). */
+function isMissingEnvError(e: unknown): boolean {
+  return e instanceof Error && e.message.includes("Missing required server secret");
+}
+
 /** Lista las actividades publicadas, opcionalmente filtradas por radio en metros. */
 export const listarActividades = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ radioMetros: z.number().int().positive().optional() }).parse(input ?? {}),
   )
   .handler(async ({ data }): Promise<Actividad[]> => {
-    const { getPublicClient } = await import("./supabase.server");
-    let consulta = getPublicClient()
-      .from("actividades")
-      .select(COLUMNAS)
-      .eq("estado", "publicada")
-      .order("fecha", { ascending: true })
-      .order("hora", { ascending: true });
+    try {
+      const { getPublicClient } = await import("./supabase.server");
+      let consulta = getPublicClient()
+        .from("actividades")
+        .select(COLUMNAS)
+        .eq("estado", "publicada")
+        .order("fecha", { ascending: true })
+        .order("hora", { ascending: true });
 
-    if (data.radioMetros) consulta = consulta.lte("distancia_metros", data.radioMetros);
+      if (data.radioMetros) consulta = consulta.lte("distancia_metros", data.radioMetros);
 
-    const { data: filas, error } = await consulta;
-    if (error) throw new Error(error.message);
-    return ((filas ?? []) as FilaActividad[]).map(aActividad);
+      const { data: filas, error } = await consulta;
+      if (error) throw new Error(error.message);
+      return ((filas ?? []) as FilaActividad[]).map(aActividad);
+    } catch (e) {
+      if (isMissingEnvError(e)) {
+        // Fallback to mock data when Supabase env is not configured (local build / preview without secrets).
+        // This keeps the UI functional before the human runs schema.sql + sets secrets.
+        console.warn("[actividades.functions] Supabase not configured — falling back to mock data.", e);
+        const { ACTIVIDADES } = await import("@/data/actividades");
+        const limite = data.radioMetros;
+        const filtradas = limite ? ACTIVIDADES.filter((a) => a.distanciaMetros <= limite) : ACTIVIDADES;
+        return [...filtradas].sort((a, b) => a.distanciaMetros - b.distanciaMetros);
+      }
+      throw e;
+    }
   });
 
 /** Obtiene una actividad publicada por su id. */
 export const obtenerActividad = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => z.object({ id: z.string().min(1) }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().min(1) }).parse(input))
   .handler(async ({ data }): Promise<Actividad | null> => {
-    const { getPublicClient } = await import("./supabase.server");
-    const { data: fila, error } = await getPublicClient()
-      .from("actividades")
-      .select(COLUMNAS)
-      .eq("estado", "publicada")
-      .eq("id", data.id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return fila ? aActividad(fila as FilaActividad) : null;
+    try {
+      const { getPublicClient } = await import("./supabase.server");
+      const { data: fila, error } = await getPublicClient()
+        .from("actividades")
+        .select(COLUMNAS)
+        .eq("estado", "publicada")
+        .eq("id", data.id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return fila ? aActividad(fila as FilaActividad) : null;
+    } catch (e) {
+      if (isMissingEnvError(e)) {
+        console.warn("[actividades.functions] Supabase not configured — falling back to mock for obtenerActividad.", e);
+        const { ACTIVIDADES } = await import("@/data/actividades");
+        return ACTIVIDADES.find((a) => a.id === data.id) ?? null;
+      }
+      throw e;
+    }
   });
 
 const sugerenciaSchema = z.object({
@@ -87,7 +114,7 @@ const sugerenciaSchema = z.object({
 
 /** Guarda una sugerencia, reporte de error o propuesta de actividad. */
 export const enviarSugerencia = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => sugerenciaSchema.parse(input))
+  .validator((input: unknown) => sugerenciaSchema.parse(input))
   .handler(async ({ data }) => {
     const { getAdminClient } = await import("./supabase.server");
     const { error } = await getAdminClient().from("sugerencias").insert({

@@ -1,3 +1,10 @@
+/**
+ * Mock fallback dataset — used only when Supabase env (SB_URL / keys) is not configured.
+ * Production data now lives in Supabase (supabase/schema.sql) and is fetched via
+ * src/lib/actividades.functions.ts (listarActividades / obtenerActividad).
+ * Keep RADIO_OPCIONES / RADIO_TAXIS / formateadores — they are still used by the UI.
+ * @deprecated for data — keep for types, formatters and offline fallback.
+ */
 export type Actividad = {
   id: string;
   nombre: string;

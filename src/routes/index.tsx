@@ -1,19 +1,30 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Accessibility,
   Car,
   Clock,
   DollarSign,
-  Home,
   Lightbulb,
   MapPin,
   Megaphone,
+  MessageSquare,
   Phone,
   Settings,
   TrainFront,
   Users,
   Volume2,
+  Home,
+  Footprints,
 } from "lucide-react";
+import { useState } from "react";
+
+import { listarActividades } from "@/lib/actividades.functions";
+import {
+  RADIO_OPCIONES,
+  formatearDistancia,
+  formatearFecha,
+  type Actividad,
+} from "@/data/actividades";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -21,8 +32,7 @@ export const Route = createFileRoute("/")({
       { title: "Ciudad Viva Mayor" },
       {
         name: "description",
-        content:
-          "Ciudad Viva Mayor — actividades para personas mayores cerca de tu barrio y del metro.",
+        content: "Ciudad Viva Mayor — actividades para personas mayores cerca de tu barrio y del metro.",
       },
       { property: "og:title", content: "Ciudad Viva Mayor" },
       {
@@ -31,10 +41,27 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
+  // Loader runs on the server (SSR) via Nitro/Cloudflare — uses Supabase via server function.
+  // Falls back to mock data if SB_* env is not yet configured.
+  loader: async () => {
+    try {
+      const actividades = await listarActividades({ data: { radioMetros: 2500 } });
+      return { actividades, radioInicial: 2500 as number };
+    } catch (e) {
+      console.error("[index loader] failed to load actividades", e);
+      return { actividades: [] as Actividad[], radioInicial: 2500 as number };
+    }
+  },
   component: CiudadVivaMayor,
 });
 
 function CiudadVivaMayor() {
+  const { actividades: iniciales, radioInicial } = Route.useLoaderData();
+  const [radio, setRadio] = useState<number>(radioInicial);
+  const [actividades, setActividades] = useState<Actividad[]>(iniciales);
+  const [cargando, setCargando] = useState(false);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+
   const handleEscuchar = (texto: string) => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -45,9 +72,27 @@ function CiudadVivaMayor() {
     }
   };
 
+  const cambiarRadio = async (valor: number) => {
+    setRadio(valor);
+    setCargando(true);
+    setErrorCarga(null);
+    try {
+      const filtradas = await listarActividades({ data: { radioMetros: valor } });
+      setActividades(filtradas);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "No pudimos cargar las actividades.";
+      setErrorCarga(msg);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // Ordenadas por distancia (el servidor ya ordena por fecha, re-ordenamos por cercanía para el listado principal)
+  const ordenadas = [...actividades].sort((a, b) => a.distanciaMetros - b.distanciaMetros);
+
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      {/* Header azul */}
+      {/* Header azul — keep #1E6CB4 as brand */}
       <header className="sticky top-0 z-10 flex items-center justify-between bg-[#1E6CB4] px-4 py-3 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#FFECB3] shadow-sm ring-2 ring-white/15">
@@ -58,35 +103,39 @@ function CiudadVivaMayor() {
           </span>
         </div>
 
-        <button
-          type="button"
-          aria-label="Ajustes"
+        <Link
+          to="/sugerencias"
+          aria-label="Enviar sugerencia"
           className="flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-white transition-colors hover:bg-white/10 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           <Settings className="size-7" aria-hidden />
           <span className="text-xs font-semibold leading-none">Ajustes</span>
-        </button>
+        </Link>
       </header>
 
-      {/* Contenido principal beige claro */}
+      {/* Contenido principal */}
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">
         <h1 className="py-6 text-center text-2xl font-extrabold leading-tight text-[#5D4037]">
           ¡Bienvenido! ¿Qué te gustaría hacer hoy?
         </h1>
 
         <div className="flex flex-col gap-4">
-          {/* Botón 1 - Actividades en mi barrio */}
+          {/* Botón 1 - Actividades en mi barrio — sets radio 800 */}
           <button
             type="button"
-            className="min-h-14 w-full rounded-2xl bg-[#1B7A3D] p-5 text-left shadow-sm transition-colors hover:bg-[#166534] active:bg-[#145A2E] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1B7A3D]"
+            onClick={() => cambiarRadio(800)}
+            aria-pressed={radio === 800}
+            className={`min-h-14 w-full rounded-2xl p-5 text-left shadow-sm transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 ${
+              radio === 800
+                ? "bg-[#1B7A3D] ring-4 ring-[#1B7A3D]/30 focus-visible:outline-[#1B7A3D]"
+                : "bg-[#1B7A3D] hover:bg-[#166534] active:bg-[#145A2E] focus-visible:outline-[#1B7A3D]"
+            }`}
           >
             <span className="flex items-center gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
                 <MapPin className="size-6 text-white" aria-hidden />
               </span>
-              <span className="text-xl font-extrabold leading-tight text-white">
-                ACTIVIDADES EN MI BARRIO
-              </span>
+              <span className="text-xl font-extrabold leading-tight text-white">ACTIVIDADES EN MI BARRIO</span>
             </span>
             <span className="mt-3 flex items-start gap-2 text-base leading-snug font-medium text-white">
               <Lightbulb className="mt-0.5 size-5 shrink-0 text-white" aria-hidden />
@@ -94,18 +143,22 @@ function CiudadVivaMayor() {
             </span>
           </button>
 
-          {/* Botón 2 - Actividades cerca del metro */}
+          {/* Botón 2 - Actividades cerca del metro — sets radio 1500 */}
           <button
             type="button"
-            className="min-h-14 w-full rounded-2xl bg-[#1E5A8A] p-5 text-left shadow-sm transition-colors hover:bg-[#164A70] active:bg-[#133D5E] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1E5A8A]"
+            onClick={() => cambiarRadio(1500)}
+            aria-pressed={radio === 1500}
+            className={`min-h-14 w-full rounded-2xl p-5 text-left shadow-sm transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 ${
+              radio === 1500
+                ? "bg-[#1E5A8A] ring-4 ring-[#1E5A8A]/30 focus-visible:outline-[#1E5A8A]"
+                : "bg-[#1E5A8A] hover:bg-[#164A70] active:bg-[#133D5E] focus-visible:outline-[#1E5A8A]"
+            }`}
           >
             <span className="flex items-center gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
                 <TrainFront className="size-6 text-white" aria-hidden />
               </span>
-              <span className="text-xl font-extrabold leading-tight text-white">
-                ACTIVIDADES CERCA DEL METRO
-              </span>
+              <span className="text-xl font-extrabold leading-tight text-white">ACTIVIDADES CERCA DEL METRO</span>
             </span>
             <span className="mt-3 flex items-start gap-2 text-base leading-snug font-medium text-white">
               <Lightbulb className="mt-0.5 size-5 shrink-0 text-white" aria-hidden />
@@ -114,7 +167,47 @@ function CiudadVivaMayor() {
           </button>
         </div>
 
-        {/* Sección naranja - Lo más cercano */}
+        {/* Filtro de distancia — WCAG AAA, botones 48dp, tab vertical, letra 18sp */}
+        <section
+          aria-labelledby="filtro-distancia"
+          className="mt-6 rounded-2xl border-4 border-border bg-card p-4"
+        >
+          <h2 id="filtro-distancia" className="text-xl font-bold text-card-foreground">
+            ¿Qué tan lejos puede ir?
+          </h2>
+          <p className="mt-1 text-lg text-muted-foreground">Elegí la distancia máxima desde tu casa.</p>
+          <div className="mt-3 flex flex-col gap-3" role="group" aria-label="Filtro por distancia">
+            {RADIO_OPCIONES.map((op) => {
+              const activo = op.valor === radio;
+              return (
+                <button
+                  key={op.valor}
+                  onClick={() => cambiarRadio(op.valor)}
+                  aria-pressed={activo}
+                  className={`min-h-14 rounded-xl border-4 px-4 text-xl font-bold transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring ${
+                    activo
+                      ? "border-foreground bg-primary text-primary-foreground"
+                      : "border-border bg-card text-card-foreground hover:bg-accent"
+                  }`}
+                >
+                  {op.etiqueta}
+                </button>
+              );
+            })}
+          </div>
+          {cargando && (
+            <p role="status" aria-live="polite" className="mt-3 text-lg font-medium text-muted-foreground">
+              Cargando actividades…
+            </p>
+          )}
+          {errorCarga && (
+            <p role="alert" className="mt-3 rounded-xl bg-destructive/10 p-3 text-lg font-bold text-destructive">
+              {errorCarga}
+            </p>
+          )}
+        </section>
+
+        {/* Sección naranja - Lo más cercano — ahora con datos reales de Supabase */}
         <section className="mt-6 overflow-hidden rounded-2xl shadow-sm" aria-labelledby="lo-mas-cercano">
           <div className="bg-[#F57C00] p-3 text-center">
             <h2
@@ -127,104 +220,159 @@ function CiudadVivaMayor() {
           </div>
 
           <div className="space-y-4 bg-[#FFF3E0] p-4">
-            {/* Card 1 */}
-            <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-3">
-                <div className="space-y-2">
-                  <h3 className="flex items-center gap-2 text-lg font-extrabold leading-tight text-[#EF6C00]">
-                    <Clock className="size-5 shrink-0" aria-hidden />
-                    <span>Hoy 4:00 PM - Gimnasia de Oro</span>
-                  </h3>
-                  <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
-                    <MapPin className="size-4 shrink-0 text-[#616161]" aria-hidden />
-                    <span>Centro Comunitario (2 cuadras)</span>
-                  </p>
-                  <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
-                    <DollarSign className="size-4 shrink-0" aria-hidden />
-                    <span>¡ES GRATIS!</span>
-                  </p>
-                  <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
-                    <Accessibility className="size-4 shrink-0" aria-hidden />
-                    <span>Rampa de Acceso</span>
-                  </p>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleEscuchar(
-                        "Hoy a las 4 de la tarde, Gimnasia de Oro en el Centro Comunitario a 2 cuadras. Es gratis y tiene rampa de acceso.",
-                      )
-                    }
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#2E7D32] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#256428] active:bg-[#1E4F22] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2E7D32]"
-                    aria-label="Escuchar información de Gimnasia de Oro"
-                  >
-                    <Volume2 className="size-4 shrink-0" aria-hidden />
-                    Escuchar
-                  </button>
-                </div>
-              </div>
-            </article>
+            <p className="text-center text-lg font-bold text-[#5D4037]" aria-live="polite">
+              {ordenadas.length} {ordenadas.length === 1 ? "actividad cercana" : "actividades cercanas"} a{" "}
+              {formatearDistancia(radio)}
+            </p>
 
-            {/* Card 2 */}
-            <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-3">
-                <div className="space-y-2">
-                  <h3 className="flex items-center gap-2 text-lg font-extrabold leading-tight text-[#1565C0]">
-                    <Clock className="size-5 shrink-0" aria-hidden />
-                    <span>Mañana 10:00 AM - Cine Club Mayor</span>
-                  </h3>
-                  <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
-                    <TrainFront className="size-4 shrink-0 text-[#616161]" aria-hidden />
-                    <span>Junto a Estación Central</span>
-                  </p>
-                  <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
-                    <DollarSign className="size-4 shrink-0" aria-hidden />
-                    <span>$1.500</span>
-                  </p>
-                  <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
-                    <Car className="size-4 shrink-0" aria-hidden />
-                    <span>Estacionamiento</span>
-                  </p>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleEscuchar(
-                        "Mañana a las 10 de la mañana, Cine Club Mayor junto a Estación Central. Valor mil quinientos pesos. Tiene estacionamiento.",
-                      )
-                    }
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#1565C0] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#104F9A] active:bg-[#0D3F7A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1565C0]"
-                    aria-label="Escuchar información de Cine Club Mayor"
-                  >
-                    <Volume2 className="size-4 shrink-0" aria-hidden />
-                    Escuchar
-                  </button>
-                </div>
+            {ordenadas.length === 0 && !cargando && (
+              <div className="rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-sm">
+                <p className="text-xl font-bold text-foreground">No hay actividades en esa distancia.</p>
+                <p className="mt-2 text-lg text-muted-foreground">Probá con una distancia mayor.</p>
+                <button
+                  type="button"
+                  onClick={() => cambiarRadio(2500)}
+                  className="mt-4 min-h-14 rounded-xl bg-primary px-6 text-xl font-bold text-primary-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  Ver hasta 2,5 km
+                </button>
               </div>
-            </article>
+            )}
+
+            <ul className="space-y-4" aria-label="Listado de actividades">
+              {ordenadas.map((a) => {
+                const textoEscuchar = `${a.nombre}. ${formatearFecha(a.fecha)} a las ${a.hora} horas en ${a.lugar}. ${a.descripcion} A ${formatearDistancia(a.distanciaMetros)} de su casa. ${a.gratuito ? "Es gratuito." : `Valor ${a.precio}.`} ${a.bano === "si" ? "Tiene baño." : a.bano === "no" ? "No tiene baño." : ""} ${a.estacionamiento === "si" ? "Tiene estacionamiento." : ""}`;
+                return (
+                  <li key={a.id}>
+                    <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
+                      <div className="flex flex-col gap-3">
+                        {/* Badges gratuito / categoría */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-block rounded-lg px-3 py-1 text-sm font-extrabold ${
+                              a.gratuito
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-secondary text-secondary-foreground"
+                            }`}
+                          >
+                            {a.gratuito ? "Gratuito" : `De pago · ${a.precio}`}
+                          </span>
+                          <span className="inline-block rounded-lg bg-accent px-3 py-1 text-sm font-bold text-accent-foreground">
+                            {a.categoria}
+                          </span>
+                        </div>
+
+                        <h3 className="text-xl font-extrabold leading-tight text-[#5D4037]">
+                          <Link
+                            to="/actividad/$id"
+                            params={{ id: a.id }}
+                            className="underline-offset-4 hover:underline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                          >
+                            {a.nombre}
+                          </Link>
+                        </h3>
+
+                        <div className="space-y-2">
+                          <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
+                            <Clock className="size-4 shrink-0 text-[#616161]" aria-hidden />
+                            <span>
+                              {formatearFecha(a.fecha)} · {a.hora} horas
+                            </span>
+                          </p>
+                          <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
+                            <MapPin className="size-4 shrink-0 text-[#616161]" aria-hidden />
+                            <span>{a.lugar}</span>
+                          </p>
+                          <p className="flex items-start gap-2 text-[15px] font-medium leading-snug text-[#424242]">
+                            <Footprints className="mt-0.5 size-4 shrink-0 text-[#616161]" aria-hidden />
+                            <span>A {formatearDistancia(a.distanciaMetros)} de su casa</span>
+                          </p>
+                          <p className="line-clamp-3 text-[15px] leading-snug text-[#616161]">{a.descripcion}</p>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                                a.bano === "si"
+                                  ? "bg-green-100 text-green-800"
+                                  : a.bano === "no"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              <Accessibility className="size-3.5" aria-hidden />
+                              Baño: {a.bano === "si" ? "Sí" : a.bano === "no" ? "No" : "Sin info"}
+                            </span>
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                                a.estacionamiento === "si"
+                                  ? "bg-green-100 text-green-800"
+                                  : a.estacionamiento === "no"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              <Car className="size-3.5" aria-hidden />
+                              Estac.: {a.estacionamiento === "si" ? "Sí" : a.estacionamiento === "no" ? "No" : "Sin info"}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">
+                              <DollarSign className="size-3.5" aria-hidden />
+                              {a.gratuito ? "¡ES GRATIS!" : a.precio}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Link
+                            to="/actividad/$id"
+                            params={{ id: a.id }}
+                            className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full bg-[#1E6CB4] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#164F8A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1E6CB4]"
+                          >
+                            Ver cómo llegar
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleEscuchar(textoEscuchar)}
+                            className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#2E7D32] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#256428] active:bg-[#1E4F22] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2E7D32]"
+                            aria-label={`Escuchar información de ${a.nombre}`}
+                          >
+                            <Volume2 className="size-4 shrink-0" aria-hidden />
+                            Escuchar
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <Link
+              to="/sugerencias"
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground transition-colors hover:bg-accent focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <MessageSquare aria-hidden className="size-6" />
+              Enviar sugerencia o reportar error
+            </Link>
           </div>
         </section>
       </main>
 
-      {/* Footer gris oscuro */}
+      {/* Footer */}
       <footer className="bg-[#263238] px-4 py-4">
         <div className="mx-auto flex max-w-2xl justify-center gap-3">
-          <button
-            type="button"
+          <Link
+            to="/"
             className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-[#EF6C00] px-6 py-3 text-sm font-extrabold leading-tight text-white shadow-sm transition-colors hover:bg-[#E65100] active:bg-[#BF360C] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <Home className="size-5 shrink-0" aria-hidden />
             <span>VOLVER A INICIO</span>
-          </button>
-          <button
-            type="button"
+          </Link>
+          <a
+            href="tel:+56227741234"
             className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-[#C62828] px-6 py-3 text-sm font-extrabold leading-tight text-white shadow-sm transition-colors hover:bg-[#B71C1C] active:bg-[#8E1A1A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <Phone className="size-5 shrink-0" aria-hidden />
             <span>AYUDA DIRECTA</span>
-          </button>
+          </a>
         </div>
       </footer>
     </div>
