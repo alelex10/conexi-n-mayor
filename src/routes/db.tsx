@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Sparkles,
   Braces,
+  Cpu,
 } from "lucide-react";
 
 import { listarActividades } from "@/lib/actividades.functions";
@@ -19,6 +20,7 @@ import {
   verificarConfigSupabase,
 } from "@/lib/admin.functions";
 import { formatearDistancia, formatearFecha, type Actividad } from "@/data/actividades";
+import { ProbarIASection } from "@/components/probar-ia";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -339,6 +341,13 @@ function DbView() {
         <Tabs defaultValue="actividades" className="mt-6">
           <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-muted p-1.5">
             <TabsTrigger
+              value="probar-ia"
+              className="min-h-11 rounded-lg px-4 text-lg font-bold data-[state=active]:bg-white data-[state=active]:text-[#1E6CB4] data-[state=active]:shadow-sm focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <Cpu className="mr-1.5 inline size-4" aria-hidden />
+              Probar IA
+            </TabsTrigger>
+            <TabsTrigger
               value="actividades"
               className="min-h-11 rounded-lg px-4 text-lg font-bold data-[state=active]:bg-white data-[state=active]:text-[#1E6CB4] data-[state=active]:shadow-sm focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
@@ -360,6 +369,10 @@ function DbView() {
               <span className="ml-2 rounded-full bg-muted px-2.5 py-0.5 text-sm font-bold">{extracciones.length}</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="probar-ia" className="mt-4 focus-visible:outline-none">
+            <ProbarIASection />
+          </TabsContent>
 
           {/* Actividades */}
           <TabsContent value="actividades" className="mt-4 focus-visible:outline-none">

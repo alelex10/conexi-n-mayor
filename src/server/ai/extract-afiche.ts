@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { z } from "zod";
 
+import { DEFAULT_GROQ_MODEL, isValidGroqModel, listarModelosDisponibles } from "./models";
+
 /**
  * Schema for the structured JSON extracted from an afiche (poster) image.
  * All fields map to the HITL pipeline: low confidence (<0.85) goes to human review.
@@ -30,9 +32,10 @@ export type ExtractAficheInput = {
   /** Raw base64 without data: prefix */
   imageBase64: string;
   mimeType?: "image/jpeg" | "image/png";
+  /** Optional model override from UI — validated against registry (flexible). */
+  model?: string | undefined;
 };
 
-const DEFAULT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 /**
@@ -55,16 +58,31 @@ export function getGroqClient(): OpenAI {
   });
 }
 
-function resolveModel(): string {
-  // Support both naming conventions:
-  // - AI_EXTRACTOR_MODEL (primary, as per task spec)
-  // - GROQ_MODEL_OVERRIDE / AI_EXTRACTOR_MODEL_OVERRIDE (alternates)
+/**
+ * Resolve model with priority: explicit param > env (deprecated, kept as fallback) > registry default.
+ * Env is deprecated — UI selector is now the primary source.
+ */
+function resolveModel(explicitModel?: string): string {
+  if (explicitModel && typeof explicitModel === "string" && explicitModel.trim().length > 0) {
+    const trimmed = explicitModel.trim();
+    // Validate flexibly — allow known ids and any meta-llama/vision variant to stay forward-compatible
+    if (isValidGroqModel(trimmed)) return trimmed;
+    // Still allow arbitrary Groq ids that look like model ids (contains slash)
+    if (trimmed.includes("/")) return trimmed;
+    console.warn(`[groq] Received invalid model "${trimmed}" — falling back to default`);
+  }
+  // Deprecated env fallback — kept so existing deploys don't break
   return (
     process.env["AI_EXTRACTOR_MODEL"] ??
     process.env["GROQ_MODEL_OVERRIDE"] ??
     process.env["AI_EXTRACTOR_MODEL_OVERRIDE"] ??
-    DEFAULT_MODEL
+    DEFAULT_GROQ_MODEL
   );
+}
+
+export { DEFAULT_GROQ_MODEL };
+export async function listarModelos() {
+  return listarModelosDisponibles();
 }
 
 function buildSystemPrompt(): string {
@@ -157,7 +175,7 @@ function toFriendlyError(error: unknown): Error {
  * Pure function — no TanStack imports, safe to call from any server handler.
  */
 export async function extractAficheFromImage(input: ExtractAficheInput): Promise<AficheExtracted> {
-  const { imageBase64, mimeType = "image/jpeg" } = input;
+  const { imageBase64, mimeType = "image/jpeg", model: explicitModel } = input;
 
   if (!imageBase64 || imageBase64.length < 100) {
     throw new Error("[extractAficheFromImage] imageBase64 too short — provide a valid base64-encoded JPG/PNG.");
@@ -167,7 +185,7 @@ export async function extractAficheFromImage(input: ExtractAficheInput): Promise
   }
 
   const client = getGroqClient();
-  const model = resolveModel();
+  const model = resolveModel(explicitModel);
 
   let rawContent: string | null | undefined;
   try {
