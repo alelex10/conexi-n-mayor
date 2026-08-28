@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DbRouteImport } from './routes/db'
 import { Route as SugerenciasRouteImport } from './routes/sugerencias'
 import { Route as ActividadIdRouteImport } from './routes/actividad.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DbRoute = DbRouteImport.update({
+  id: '/db',
+  path: '/db',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SugerenciasRoute = SugerenciasRouteImport.update({
@@ -31,30 +37,34 @@ const ActividadIdRoute = ActividadIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/db': typeof DbRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/db': typeof DbRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/db': typeof DbRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sugerencias' | '/actividad/$id'
+  fullPaths: '/' | '/db' | '/sugerencias' | '/actividad/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/sugerencias' | '/actividad/$id'
-  id: '__root__' | '/' | '/sugerencias' | '/actividad/$id'
+  to: '/' | '/db' | '/sugerencias' | '/actividad/$id'
+  id: '__root__' | '/' | '/db' | '/sugerencias' | '/actividad/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DbRoute: typeof DbRoute
   SugerenciasRoute: typeof SugerenciasRoute
   ActividadIdRoute: typeof ActividadIdRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/db': {
+      id: '/db'
+      path: '/db'
+      fullPath: '/db'
+      preLoaderRoute: typeof DbRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sugerencias': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DbRoute: DbRoute,
   SugerenciasRoute: SugerenciasRoute,
   ActividadIdRoute: ActividadIdRoute,
 }

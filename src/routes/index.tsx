@@ -3,6 +3,7 @@ import {
   Accessibility,
   Car,
   Clock,
+  Database,
   DollarSign,
   Lightbulb,
   MapPin,
@@ -373,6 +374,15 @@ function CiudadVivaMayor() {
             <Phone className="size-5 shrink-0" aria-hidden />
             <span>AYUDA DIRECTA</span>
           </a>
+        </div>
+        <div className="mx-auto mt-3 flex max-w-2xl justify-center">
+          <Link
+            to="/db"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white/70 underline-offset-4 hover:text-white hover:underline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <Database className="size-4 shrink-0" aria-hidden />
+            Ver datos en la base → /db
+          </Link>
         </div>
       </footer>
     </div>
