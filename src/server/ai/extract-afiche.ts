@@ -1,13 +1,19 @@
 import OpenAI from "openai";
 import { z } from "zod";
 
+import { DEFAULT_GROQ_MODEL, isValidGroqModel, listarModelosDisponibles } from "./models";
+
 /**
  * Schema for the structured JSON extracted from an afiche (poster) image.
  * All fields map to the HITL pipeline: low confidence (<0.85) goes to human review.
  */
 export const AficheExtractSchema = z.object({
-  titulo: z.string().min(1).describe("Title of the activity as seen on the poster"),
-  descripcion: z.string().optional().describe("Short description / body text"),
+  // 2026-08-29: titulo ahora nullable/optional + preprocess empty→null para no crashear Zod en imágenes vacías/low-confidence.
+  // Si el modelo no ve título → devuelve null/"" → handler fuerza confidence 0 y warnings (HITL).
+  titulo: z
+    .preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), z.string().min(1).nullable().optional())
+    .describe("Title of the activity as seen on the poster, or null if not visible"),
+  descripcion: z.string().nullable().optional().describe("Short description / body text"),
   fecha: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "fecha must be ISO YYYY-MM-DD")
@@ -20,8 +26,8 @@ export const AficheExtractSchema = z.object({
   confidence: z.number().min(0).max(1).describe("Overall extraction confidence 0..1"),
   fields: z.record(z.string(), z.number().min(0).max(1)).optional().describe("Per-field confidence map"),
   warnings: z.array(z.string()).optional().describe("Warnings / uncertainties"),
-  precio_texto: z.string().optional().describe("Price as text if present"),
-  es_gratuito: z.boolean().optional().describe("Whether the activity is free"),
+  precio_texto: z.string().nullable().optional().describe("Price as text if present"),
+  es_gratuito: z.boolean().nullable().optional().describe("Whether the activity is free"),
 });
 
 export type AficheExtracted = z.infer<typeof AficheExtractSchema>;
@@ -30,9 +36,10 @@ export type ExtractAficheInput = {
   /** Raw base64 without data: prefix */
   imageBase64: string;
   mimeType?: "image/jpeg" | "image/png";
+  /** Optional model override from UI — validated against registry (flexible). */
+  model?: string | undefined;
 };
 
-const DEFAULT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 /**
@@ -55,16 +62,31 @@ export function getGroqClient(): OpenAI {
   });
 }
 
-function resolveModel(): string {
-  // Support both naming conventions:
-  // - AI_EXTRACTOR_MODEL (primary, as per task spec)
-  // - GROQ_MODEL_OVERRIDE / AI_EXTRACTOR_MODEL_OVERRIDE (alternates)
+/**
+ * Resolve model with priority: explicit param > env (deprecated, kept as fallback) > registry default.
+ * Env is deprecated — UI selector is now the primary source.
+ */
+function resolveModel(explicitModel?: string): string {
+  if (explicitModel && typeof explicitModel === "string" && explicitModel.trim().length > 0) {
+    const trimmed = explicitModel.trim();
+    // Validate flexibly — allow known ids and any meta-llama/vision variant to stay forward-compatible
+    if (isValidGroqModel(trimmed)) return trimmed;
+    // Still allow arbitrary Groq ids that look like model ids (contains slash)
+    if (trimmed.includes("/")) return trimmed;
+    console.warn(`[groq] Received invalid model "${trimmed}" — falling back to default`);
+  }
+  // Deprecated env fallback — kept so existing deploys don't break
   return (
     process.env["AI_EXTRACTOR_MODEL"] ??
     process.env["GROQ_MODEL_OVERRIDE"] ??
     process.env["AI_EXTRACTOR_MODEL_OVERRIDE"] ??
-    DEFAULT_MODEL
+    DEFAULT_GROQ_MODEL
   );
+}
+
+export { DEFAULT_GROQ_MODEL };
+export async function listarModelos() {
+  return listarModelosDisponibles();
 }
 
 function buildSystemPrompt(): string {
@@ -157,7 +179,7 @@ function toFriendlyError(error: unknown): Error {
  * Pure function — no TanStack imports, safe to call from any server handler.
  */
 export async function extractAficheFromImage(input: ExtractAficheInput): Promise<AficheExtracted> {
-  const { imageBase64, mimeType = "image/jpeg" } = input;
+  const { imageBase64, mimeType = "image/jpeg", model: explicitModel } = input;
 
   if (!imageBase64 || imageBase64.length < 100) {
     throw new Error("[extractAficheFromImage] imageBase64 too short — provide a valid base64-encoded JPG/PNG.");
@@ -167,7 +189,7 @@ export async function extractAficheFromImage(input: ExtractAficheInput): Promise
   }
 
   const client = getGroqClient();
-  const model = resolveModel();
+  const model = resolveModel(explicitModel);
 
   let rawContent: string | null | undefined;
   try {
@@ -206,7 +228,24 @@ export async function extractAficheFromImage(input: ExtractAficheInput): Promise
       throw new Error(`[groq] Failed to parse JSON from model. Raw: ${cleaned.slice(0, 800)} — ${(parseErr as Error).message}`);
     }
 
-    const validated = AficheExtractSchema.parse(parsed);
+    const parsedValidated = AficheExtractSchema.parse(parsed) as AficheExtracted & { titulo?: string | null };
+    // Si titulo es null/undefined/empty → forzar confidence 0 y agregar warning (imagen vacía / low-confidence)
+    // Así qwen vision base64 OK no crashea Zod y fluye a HITL.
+    let validated: AficheExtracted = parsedValidated as AficheExtracted;
+    const tituloVal = (parsedValidated as { titulo?: string | null }).titulo;
+    if (!tituloVal || (typeof tituloVal === "string" && tituloVal.trim().length === 0)) {
+      const warnings = [...(parsedValidated.warnings ?? []), "título no detectado — imagen vacía o baja calidad (confidence forzado a 0)"];
+      validated = {
+        ...parsedValidated,
+        titulo: (tituloVal as string | null) ?? null,
+        confidence: 0,
+        warnings,
+      } as unknown as AficheExtracted;
+      // Si titulo era undefined, asegurar null para consistencia
+      if ((validated as unknown as Record<string, unknown>)["titulo"] === undefined) {
+        (validated as unknown as Record<string, unknown>)["titulo"] = null;
+      }
+    }
     return validated;
   } catch (error) {
     throw toFriendlyError(error);

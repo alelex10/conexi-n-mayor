@@ -1,10 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { extractAficheFromImage } from "./extract-afiche";
-import { DEFAULT_GROQ_MODEL } from "./models";
-
-const HITL_THRESHOLD = 0.85;
+/**
+ * AI extractor server functions — thin RPC layer (client-importable).
+ * Pure logic lives in src/server/ai/*.ts which is never statically imported
+ * from the client; we use await import() inside handlers to avoid
+ * Vite import-protection (which denies **\/server/** in client bundles).
+ */
 
 const inputSchema = z.object({
   imageBase64: z.string().min(100, "imageBase64 must be at least 100 chars (base64 JPG/PNG)"),
@@ -13,13 +15,12 @@ const inputSchema = z.object({
 });
 
 /**
- * Server Function: list Groq vision models (public, no auth for MVP).
- * Delegates to listarModelosDisponibles which tries Groq /v1/models and falls back to static list.
- * Never leaks GROQ_API_KEY.
+ * Public — no auth for MVP. Returns available Groq vision models.
+ * Tries Groq /v1/models server-side, falls back to static registry. Never leaks GROQ_API_KEY.
  */
 export const listarModelosGroqFn = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const { listarModelosDisponibles } = await import("./models");
+    const { listarModelosDisponibles, DEFAULT_GROQ_MODEL } = await import("@/server/ai/models");
     const result = await listarModelosDisponibles();
     return {
       models: result.models,
@@ -30,7 +31,7 @@ export const listarModelosGroqFn = createServerFn({ method: "GET" }).handler(asy
     };
   } catch (e) {
     console.warn("[listarModelosGroqFn] failed, returning static fallback", e instanceof Error ? e.message : String(e));
-    const { GROQ_VISION_MODELS } = await import("./models");
+    const { GROQ_VISION_MODELS, DEFAULT_GROQ_MODEL } = await import("@/server/ai/models");
     return {
       models: [...GROQ_VISION_MODELS],
       source: "static" as const,
@@ -41,16 +42,18 @@ export const listarModelosGroqFn = createServerFn({ method: "GET" }).handler(asy
   }
 });
 
+const HITL_THRESHOLD = 0.85;
+
 /**
- * Server Function: extract afiche via Groq vision + HITL gate.
- * - Reads env INSIDE handler (Workers-safe)
- * - model is optional from client; forwarded to extractAficheFromImage which validates
- * - If confidence < 0.85 → needsReview = true and persists to Supabase extracciones_pendientes (graceful if table missing)
- * - Never auto-publishes; returns status for caller to branch
+ * Extract afiche via Groq vision + HITL gate.
+ * - model is optional from client; validated server-side via isValidGroqModel
+ * - confidence < 0.85 persists to extracciones_pendientes (best-effort)
  */
 export const extractAficheFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => inputSchema.parse(data))
   .handler(async ({ data }) => {
+    const { extractAficheFromImage } = await import("@/server/ai/extract-afiche");
+    const { DEFAULT_GROQ_MODEL } = await import("@/server/ai/models");
     const extracted = await extractAficheFromImage({
       imageBase64: data.imageBase64,
       mimeType: data.mimeType,
@@ -60,13 +63,11 @@ export const extractAficheFn = createServerFn({ method: "POST" })
     const confidence = extracted.confidence;
     const needsReview = confidence < HITL_THRESHOLD;
     const status = needsReview ? "needs_review" : "extracted";
-
-    // Resolve which model was actually used for auditing (mirrors resolveModel logic without importing internal)
     const usedModel = data.model?.trim() || process.env["AI_EXTRACTOR_MODEL"] || DEFAULT_GROQ_MODEL;
 
     if (needsReview) {
       try {
-        const { getAdminClient } = await import("@/lib/supabase.server");
+        const { getAdminClient } = await import("./supabase.server");
         const admin = getAdminClient();
         const { error } = await admin.from("extracciones_pendientes").insert({
           raw_json: extracted as unknown as Record<string, unknown>,
@@ -85,10 +86,7 @@ export const extractAficheFn = createServerFn({ method: "POST" })
           msg.includes("Could not find the table");
         const isMissingEnv = msg.includes("Missing required server secret");
         if (isMissingTable || isMissingEnv) {
-          console.warn(
-            "[extractAfiche.server] Skipping Supabase persist — table or env not ready (feature flag).",
-            msg,
-          );
+          console.warn("[extractAfiche.server] Skipping Supabase persist — table or env not ready (feature flag).", msg);
         } else {
           console.warn("[extractAfiche.server] Failed to persist extracciones_pendientes — returning extraction anyway.", msg);
         }
@@ -104,5 +102,5 @@ export const extractAficheFn = createServerFn({ method: "POST" })
     };
   });
 
-// Backwards-compatible alias — older callers import `extractAfiche`
+// Backwards-compat alias
 export const extractAfiche = extractAficheFn;
