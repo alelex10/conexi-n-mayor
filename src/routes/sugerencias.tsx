@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { enviarSugerencia } from "@/lib/actividades.functions";
+import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/sugerencias")({
   head: () => ({
@@ -60,7 +61,7 @@ function Sugerencias() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 pb-16">
+    <AppShell>
       <Link
         to="/"
         className="mt-6 inline-flex min-h-14 items-center gap-2 rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -155,6 +156,6 @@ function Sugerencias() {
           <p className="text-base text-muted-foreground">Usaremos tu contacto solo para responderte si es necesario.</p>
         </form>
       )}
-    </div>
+    </AppShell>
   );
 }
