@@ -20,56 +20,44 @@ export type GroqVisionModel = {
   vision: boolean;
 };
 
-export const DEFAULT_GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+export const DEFAULT_GROQ_MODEL = "qwen/qwen3.6-27b";
 
 export const GROQ_VISION_MODELS: readonly GroqVisionModel[] = [
   {
-    id: "meta-llama/llama-4-scout-17b-16e-instruct",
-    label: "Llama 4 Scout 17B",
-    description: "Recomendado — 17B MoE activo, visión nativa, rápido y económico para afiches",
+    id: "qwen/qwen3.6-27b",
+    label: "Qwen 3 27B Vision",
+    description: "Recomendado — Qwen 3.6 27B con visión nativa, rápido y económico para afiches (reemplaza Llama 4 Scout deprecado 17/07/2026)",
     contextWindow: 131072,
     maxImages: 5,
     speed: "594 TPS",
-    pricingIn: "$0.11 / 1M",
-    pricingOut: "$0.34 / 1M",
+    pricingIn: "$0.60 / 1M",
+    pricingOut: "$3.00 / 1M",
     recommended: true,
     vision: true,
   },
   {
-    id: "meta-llama/llama-4-maverick-17b-128e-instruct",
-    label: "Llama 4 Maverick 17B (128E)",
-    description: "400B total MoE — máxima calidad, mayor costo y latencia",
+    id: "qwen/qwen3.8-27b",
+    label: "Qwen 3.8 27B Vision",
+    description: "Qwen 3.8 27B — visión nativa, contexto largo, ideal para afiches complejos",
     contextWindow: 131072,
-    maxImages: 5,
-    speed: "~300 TPS",
-    pricingIn: "$0.60 / 1M",
-    pricingOut: "$3.00 / 1M",
+    maxImages: 3,
+    speed: "~500 TPS",
+    pricingIn: "$0.80 / 1M",
+    pricingOut: "$4.00 / 1M",
     recommended: false,
     vision: true,
   },
   {
-    id: "meta-llama/llama-3.2-90b-vision-preview",
-    label: "Llama 3.2 90B Vision (preview)",
-    description: "Fallback 90B — puede estar deprecado en Groq, útil para compatibilidad",
+    id: "openai/gpt-oss-120b",
+    label: "GPT OSS 120B (no-vision fallback)",
+    description: "Fallback texto — sin visión, útil como referencia de pricing; no usar para afiches",
     contextWindow: 131072,
-    maxImages: 5,
-    speed: "~200 TPS",
-    pricingIn: "$0.90 / 1M",
-    pricingOut: "$0.90 / 1M",
+    maxImages: null,
+    speed: "~400 TPS",
+    pricingIn: "$0.15 / 1M",
+    pricingOut: "$0.60 / 1M",
     recommended: false,
-    vision: true,
-  },
-  {
-    id: "meta-llama/llama-3.2-11b-vision-preview",
-    label: "Llama 3.2 11B Vision (preview)",
-    description: "Ligero y rápido — ideal para pruebas o dispositivos limitados",
-    contextWindow: 8192,
-    maxImages: 1,
-    speed: "~600 TPS",
-    pricingIn: "$0.18 / 1M",
-    pricingOut: "$0.18 / 1M",
-    recommended: false,
-    vision: true,
+    vision: false,
   },
 ] as const;
 
@@ -77,7 +65,8 @@ const KNOWN_IDS = new Set(GROQ_VISION_MODELS.map((m) => m.id));
 
 /**
  * Flexible validator: accepts exact registry ids, or any id that looks like
- * a Llama vision variant (starts with meta-llama/ or contains "vision").
+ * a Groq vision variant (qwen, meta-llama, vision).
+ * Updated 2026-08-29: Llama 4 scout/maverick deprecados — validar qwen y gpt-oss también.
  */
 export function isValidGroqModel(id: string): boolean {
   if (!id || typeof id !== "string") return false;
@@ -85,8 +74,12 @@ export function isValidGroqModel(id: string): boolean {
   const lower = id.toLowerCase();
   if (lower.startsWith("meta-llama/")) return true;
   if (lower.includes("vision")) return true;
+  if (lower.includes("qwen")) return true;
+  if (lower.startsWith("openai/gpt-oss")) return true;
   // Allow any groq-style model id that contains llama + instruct (future-proof)
   if (lower.includes("llama") && lower.includes("instruct")) return true;
+  // Generic fallback: any id with slash looks like a Groq model id
+  if (id.includes("/")) return true;
   return false;
 }
 
@@ -135,10 +128,21 @@ export async function listarModelosDisponibles(): Promise<ListarModelosResult> {
     // Keep order of GROQ_VISION_MODELS, but only those present remotely;
     // append any remote vision-ish ids not in static (as generic entries)
     const intersected: GroqVisionModel[] = GROQ_VISION_MODELS.filter((m) => remoteSet.has(m.id));
+    // BUGFIX 2026-08-29: old logic returned 2 prompt-guard models (extraRemoteVision)
+    // when intersect vacío (scout/maverick deprecados). Ahora: si intersect vacío → fallback a static completo.
+    if (intersected.length === 0) {
+      console.warn("[groq models] Intersect vacío — Groq no devolvió ninguno de GROQ_VISION_MODELS, usando static completo");
+      return { models: [...GROQ_VISION_MODELS], source: "static", fetchedAt };
+    }
     const extraRemoteVision = remoteIds
       .filter((id) => {
         const lower = id.toLowerCase();
-        return (lower.includes("vision") || lower.startsWith("meta-llama/")) && !KNOWN_IDS.has(id);
+        // Excluir guard/safeguard (no son extractores de afiche)
+        if (lower.includes("guard") || lower.includes("safeguard") || lower.includes("prompt-guard")) return false;
+        return (
+          (lower.includes("vision") || lower.startsWith("meta-llama/") || lower.includes("qwen")) &&
+          !KNOWN_IDS.has(id)
+        );
       })
       .map<GroqVisionModel>((id) => ({
         id,
