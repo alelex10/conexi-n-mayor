@@ -18,6 +18,7 @@ type FilaActividad = {
   como_llegar: string;
   categoria: string;
   descripcion: string;
+  estado?: "borrador" | "publicada" | "archivada" | null;
 };
 
 function aActividad(fila: FilaActividad): Actividad {
@@ -36,11 +37,12 @@ function aActividad(fila: FilaActividad): Actividad {
     comoLlegar: fila.como_llegar,
     categoria: fila.categoria,
     descripcion: fila.descripcion,
+    ...(fila.estado ? { estado: fila.estado } : { estado: "publicada" as const }),
   };
 }
 
 const COLUMNAS =
-  "id, nombre, fecha, hora, lugar, direccion, gratuito, precio, distancia_metros, bano, estacionamiento, como_llegar, categoria, descripcion";
+  "id, nombre, fecha, hora, lugar, direccion, gratuito, precio, distancia_metros, bano, estacionamiento, como_llegar, categoria, descripcion, estado";
 
 /** Returns true if the error is due to missing SB_* env (build without secrets). */
 function isMissingEnvError(e: unknown): boolean {

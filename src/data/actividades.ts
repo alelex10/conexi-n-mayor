@@ -53,6 +53,7 @@ export const ACTIVIDADES: Actividad[] = [
     categoria: "Salud y mente",
     descripcion:
       "Ejercicios entretenidos de memoria, lectura y juegos de mesa. Se entrega café y galletas. No necesita inscribirse.",
+    estado: "publicada",
   },
   {
     id: "gimnasia-entretenida",
@@ -70,6 +71,7 @@ export const ACTIVIDADES: Actividad[] = [
     categoria: "Ejercicio",
     descripcion:
       "Clase suave de 45 minutos con monitora del programa Adulto Mayor. Traiga agua y ropa cómoda.",
+    estado: "publicada",
   },
   {
     id: "baile-entretenido",
@@ -87,6 +89,7 @@ export const ACTIVIDADES: Actividad[] = [
     comoLlegar: "Micro I09 hasta Las Rejas Norte con Mapocho. La sede está frente al almacén.",
     categoria: "Recreación",
     descripcion: "Música en vivo, baile y once compartida. Aporte voluntario para la once.",
+    estado: "publicada",
   },
   {
     id: "control-salud",
@@ -103,6 +106,7 @@ export const ACTIVIDADES: Actividad[] = [
     comoLlegar: "Micro J10 o 405 por San Pablo. Bajarse en el paradero del CESFAM, sin transbordos.",
     categoria: "Salud",
     descripcion: "Toma de presión, medición de azúcar y orientación de enfermería. Lleve su cédula de identidad.",
+    estado: "publicada",
   },
   {
     id: "taller-celular",
@@ -119,6 +123,7 @@ export const ACTIVIDADES: Actividad[] = [
     comoLlegar: "A 6 cuadras caminando por San Pablo hacia el oriente. Vereda plana y con semáforos.",
     categoria: "Aprendizaje",
     descripcion: "Taller paso a paso: llamadas, WhatsApp y fotos. Traiga su celular cargado.",
+    estado: "publicada",
   },
 ];
 
