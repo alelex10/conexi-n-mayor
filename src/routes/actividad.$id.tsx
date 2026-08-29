@@ -3,6 +3,7 @@ import { ArrowLeft, Bath, Car, Map, Phone, Bus } from "lucide-react";
 
 import { obtenerActividad } from "@/lib/actividades.functions";
 import { RADIO_TAXIS, formatearDistancia, formatearFecha } from "@/data/actividades";
+import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/actividad/$id")({
   loader: async ({ params }) => {
@@ -74,7 +75,7 @@ function Detalle() {
   const cabifyUrl = `https://cabify.com/es-CL?destination=${destino}`;
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 pb-16">
+    <AppShell>
       <Link
         to="/"
         className="mt-6 inline-flex min-h-14 items-center gap-2 rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -158,6 +159,6 @@ function Detalle() {
           Pedir Cabify a esta actividad
         </a>
       </div>
-    </div>
+    </AppShell>
   );
 }
