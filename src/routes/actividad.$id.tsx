@@ -1,11 +1,12 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, Bath, Car, Map, Phone, Bus } from "lucide-react";
+import { Bath, Car, Map, Phone, Bus } from "lucide-react";
 import {
   ACTIVIDADES,
   RADIO_TAXIS,
   formatearDistancia,
   formatearFecha,
 } from "@/data/actividades";
+import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/actividad/$id")({
   loader: ({ params }) => {
@@ -77,14 +78,7 @@ function Detalle() {
   const cabifyUrl = `https://cabify.com/es-CL?destination=${destino}`;
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 pb-16">
-      <Link
-        to="/"
-        className="mt-6 inline-flex min-h-14 items-center gap-2 rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground"
-      >
-        <ArrowLeft aria-hidden className="size-6" /> Volver
-      </Link>
-
+    <AppShell>
       <h1 className="mt-6 text-4xl font-extrabold leading-tight text-foreground">
         {actividad.nombre}
       </h1>
@@ -162,6 +156,6 @@ function Detalle() {
           Pedir Cabify a esta actividad
         </a>
       </div>
-    </div>
+    </AppShell>
   );
 }

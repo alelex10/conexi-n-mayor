@@ -1,19 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Accessibility,
   Car,
   Clock,
   DollarSign,
-  Home,
   Lightbulb,
   MapPin,
   Megaphone,
   Phone,
-  Settings,
   TrainFront,
-  Users,
   Volume2,
 } from "lucide-react";
+import {
+  ACTIVIDADES,
+  formatearDistancia,
+  formatearFecha,
+} from "@/data/actividades";
+import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -45,31 +49,23 @@ function CiudadVivaMayor() {
     }
   };
 
+  const [mostrarBarrio, setMostrarBarrio] = useState(false);
+  const actividadesBarrio = [...ACTIVIDADES]
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    .slice(0, 10);
+
+  const verActividadesBarrio = () => {
+    setMostrarBarrio(true);
+    setTimeout(() => {
+      document
+        .getElementById("actividades-barrio")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
+  };
+
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
-      {/* Header azul */}
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-[#1E6CB4] px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#FFECB3] shadow-sm ring-2 ring-white/15">
-            <Users className="size-6 text-[#5D4037]" aria-hidden />
-          </div>
-          <span className="text-xl font-extrabold leading-none tracking-tight text-white">
-            Ciudad Viva Mayor
-          </span>
-        </div>
-
-        <button
-          type="button"
-          aria-label="Ajustes"
-          className="flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-white transition-colors hover:bg-white/10 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          <Settings className="size-7" aria-hidden />
-          <span className="text-xs font-semibold leading-none">Ajustes</span>
-        </button>
-      </header>
-
+    <AppShell>
       {/* Contenido principal beige claro */}
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">
         <h1 className="py-6 text-center text-2xl font-extrabold leading-tight text-[#5D4037]">
           ¡Bienvenido! ¿Qué te gustaría hacer hoy?
         </h1>
@@ -78,6 +74,7 @@ function CiudadVivaMayor() {
           {/* Botón 1 - Actividades en mi barrio */}
           <button
             type="button"
+            onClick={verActividadesBarrio}
             className="min-h-14 w-full rounded-2xl bg-[#1B7A3D] p-5 text-left shadow-sm transition-colors hover:bg-[#166534] active:bg-[#145A2E] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1B7A3D]"
           >
             <span className="flex items-center gap-3">
@@ -206,27 +203,85 @@ function CiudadVivaMayor() {
             </article>
           </div>
         </section>
-      </main>
 
-      {/* Footer gris oscuro */}
-      <footer className="bg-[#263238] px-4 py-4">
-        <div className="mx-auto flex max-w-2xl justify-center gap-3">
-          <button
-            type="button"
-            className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-[#EF6C00] px-6 py-3 text-sm font-extrabold leading-tight text-white shadow-sm transition-colors hover:bg-[#E65100] active:bg-[#BF360C] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
+      {mostrarBarrio && (
+        <section
+          id="actividades-barrio"
+          aria-labelledby="titulo-barrio"
+          className="mx-auto w-full max-w-2xl px-4 pb-6"
+        >
+          <h2
+            id="titulo-barrio"
+            className="py-6 text-center text-2xl font-extrabold leading-tight text-[#5D4037]"
           >
-            <Home className="size-5 shrink-0" aria-hidden />
-            <span>VOLVER A INICIO</span>
-          </button>
-          <button
-            type="button"
-            className="flex min-h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-[#C62828] px-6 py-3 text-sm font-extrabold leading-tight text-white shadow-sm transition-colors hover:bg-[#B71C1C] active:bg-[#8E1A1A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
-          >
-            <Phone className="size-5 shrink-0" aria-hidden />
-            <span>AYUDA DIRECTA</span>
-          </button>
-        </div>
-      </footer>
-    </div>
+            Actividades en tu barrio (Lo Prado)
+          </h2>
+
+          <div className="space-y-4">
+            {actividadesBarrio.map((a) => (
+              <article
+                key={a.id}
+                className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm"
+              >
+                <div className="flex flex-col gap-3">
+                  <div className="space-y-2">
+                    <h3 className="flex items-center gap-2 text-lg font-extrabold leading-tight text-[#EF6C00]">
+                      <Clock className="size-5 shrink-0" aria-hidden />
+                      <span>
+                        {formatearFecha(a.fecha)} {a.hora} - {a.nombre}
+                      </span>
+                    </h3>
+                    <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
+                      <MapPin className="size-4 shrink-0 text-[#616161]" aria-hidden />
+                      <span>{a.lugar}</span>
+                    </p>
+                    <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
+                      <DollarSign className="size-4 shrink-0" aria-hidden />
+                      <span>{a.gratuito ? "¡ES GRATIS!" : a.precio}</span>
+                    </p>
+                    <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
+                      <Accessibility className="size-4 shrink-0" aria-hidden />
+                      <span>a {formatearDistancia(a.distanciaMetros)} de su casa</span>
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleEscuchar(
+                          `${formatearFecha(a.fecha)} a las ${a.hora}, ${a.nombre} en ${a.lugar}. ${
+                            a.gratuito ? "Es gratis." : "De pago, " + a.precio + "."
+                          } Queda a ${formatearDistancia(a.distanciaMetros)} de su casa.`,
+                        )
+                      }
+                      className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#2E7D32] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#256428] active:bg-[#1E4F22] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2E7D32]"
+                      aria-label={`Escuchar información de ${a.nombre}`}
+                    >
+                      <Volume2 className="size-4 shrink-0" aria-hidden />
+                      Escuchar
+                    </button>
+                    <a
+                      href={`tel:${a.telefono}`}
+                      className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#1565C0] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#104F9A] active:bg-[#0D3F7A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1565C0]"
+                      aria-label={`Llamar para consultar por ${a.nombre}`}
+                    >
+                      <Phone className="size-4 shrink-0" aria-hidden />
+                      Llamar
+                    </a>
+                    <Link
+                      to="/actividad/$id"
+                      params={{ id: a.id }}
+                      className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#F57C00] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#E65100] active:bg-[#BF360C] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#F57C00]"
+                    >
+                      Ver más
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+    </AppShell>
   );
 }

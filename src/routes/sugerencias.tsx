@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/sugerencias")({
   head: () => ({
@@ -22,14 +23,7 @@ function Sugerencias() {
   const [mensaje, setMensaje] = useState("");
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 pb-16">
-      <Link
-        to="/"
-        className="mt-6 inline-flex min-h-14 items-center gap-2 rounded-xl border-4 border-foreground bg-card px-4 text-xl font-bold text-card-foreground"
-      >
-        <ArrowLeft aria-hidden className="size-6" /> Volver
-      </Link>
-
+    <AppShell>
       <h1 className="mt-6 text-4xl font-extrabold leading-tight text-foreground">
         Enviar sugerencia
       </h1>
@@ -81,6 +75,6 @@ function Sugerencias() {
           </button>
         </form>
       )}
-    </div>
+    </AppShell>
   );
 }

@@ -5,6 +5,7 @@ export type Actividad = {
   hora: string;
   lugar: string;
   direccion: string;
+  telefono: string;
   gratuito: boolean;
   precio?: string;
   distanciaMetros: number;
@@ -35,6 +36,7 @@ export const ACTIVIDADES: Actividad[] = [
     hora: "10:30",
     lugar: "Centro Cultural Lo Prado",
     direccion: "San Pablo 5850, Lo Prado, Santiago",
+    telefono: "+56227381234",
     gratuito: true,
     distanciaMetros: 550,
     bano: "si",
@@ -51,6 +53,7 @@ export const ACTIVIDADES: Actividad[] = [
     hora: "09:00",
     lugar: "Plaza Buzeta",
     direccion: "Buzeta 1500, Lo Prado, Santiago",
+    telefono: "+56227381567",
     gratuito: true,
     distanciaMetros: 780,
     bano: "sin_info",
@@ -67,6 +70,7 @@ export const ACTIVIDADES: Actividad[] = [
     hora: "16:00",
     lugar: "Sede Junta de Vecinos N°12",
     direccion: "Las Rejas Norte 1200, Lo Prado, Santiago",
+    telefono: "+56227381890",
     gratuito: false,
     precio: "$1.000 por persona",
     distanciaMetros: 1400,
@@ -83,6 +87,7 @@ export const ACTIVIDADES: Actividad[] = [
     hora: "09:30",
     lugar: "CESFAM Lo Prado",
     direccion: "Av. San Pablo 6550, Lo Prado, Santiago",
+    telefono: "+56227372000",
     gratuito: true,
     distanciaMetros: 2100,
     bano: "si",
@@ -98,6 +103,7 @@ export const ACTIVIDADES: Actividad[] = [
     hora: "11:00",
     lugar: "Biblioteca Municipal de Lo Prado",
     direccion: "San Pablo 5960, Lo Prado, Santiago",
+    telefono: "+56227382500",
     gratuito: true,
     distanciaMetros: 620,
     bano: "si",
