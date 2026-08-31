@@ -21,7 +21,6 @@ import { useState } from "react";
 
 import { listarActividades } from "@/lib/actividades.functions";
 import {
-  ACTIVIDADES,
   RADIO_OPCIONES,
   formatearDistancia,
   formatearFecha,
