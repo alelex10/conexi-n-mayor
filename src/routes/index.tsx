@@ -21,7 +21,6 @@ import { useState } from "react";
 
 import { listarActividades } from "@/lib/actividades.functions";
 import {
-  ACTIVIDADES,
   RADIO_OPCIONES,
   formatearDistancia,
   formatearFecha,
@@ -66,7 +65,7 @@ function CiudadVivaMayor() {
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [mostrarBarrio, setMostrarBarrio] = useState(false);
 
-  const actividadesBarrio = [...ACTIVIDADES]
+  const actividadesBarrio = [...actividades]
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
     .slice(0, 10);
 
