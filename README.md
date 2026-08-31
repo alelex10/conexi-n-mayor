@@ -1,104 +1,154 @@
 # Conexión Mayor
 
-Para la comuna de Lo Prado (Santiago, Chile), la combinación ideal de fuentes de datos, integraciones de transporte y accesibilidad para adultos mayores se estructura de la siguiente manera.
+> Piloto para **Lo Prado, Santiago de Chile** — conecta a personas de 60+ años con actividades gratuitas o de bajo costo cercanas a su hogar, con interfaz móvil de fricción cero.
 
-Investigación de Fuentes de Datos (Gratuitas)
+[![Vite](https://img.shields.io/badge/Vite-8.x-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
+[![TanStack Start](https://img.shields.io/badge/TanStack_Start-1.168-FF4154?logo=react&logoColor=white)](https://tanstack.com/start)
+[![TanStack Router](https://img.shields.io/badge/TanStack_Router-1.170-FF4154)](https://tanstack.com/router)
+[![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![WCAG](https://img.shields.io/badge/WCAG-AAA-0A7B3E)](./docs/06-requisitos-producto.md#requisitos-no-funcionales)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](#)
 
-Fuente Factibilidad en Chile / Lo Prado Ventajas Desventajas / Retos APIs de Gobierno Media-Baja: datos.gob.cl y SENAMA tienen datos presupuestarios, pero rara vez APIs REST de eventos locales en vivo. Estructuradas y gratuitas. Poca actualización de actividades diarias a nivel municipal. Scraping Web Alta: Extracción del sitio oficial de Lo Prado (loprado.cl), Facebook municipal y centros culturales. Información directa y local. Si la página cambia su diseño, el script de scraping se rompe. IA + Web Search Alta: Agentes con scripts semanales buscando eventos en noticias y redes sociales locales. Permite sintetizar texto desestructurado a formato limpio. Requiere validación para evitar alucinaciones. Carga Manual Alta: Formulario sencillo administrado por la Oficina del Adulto Mayor de Lo Prado o juntas de vecinos. 100% confiable y verificado. Depende de la voluntad y tiempo de los encargados locales.
+> [!CAUTION]
+> **A DECIDIR — Nombre definitivo:** candidatos actuales: **Conexión Mayor**, **Actividad Fácil**, **Ciudad Viva Mayor**. *Conexión Mayor* se usa como nombre de trabajo hasta el anuncio oficial. Ver [`docs/01-vision-general.md`](./docs/01-vision-general.md#nombre-del-producto).
 
-Recomendación para el MVP: Utilizar un enfoque híbrido: IA + Scraping automático de las redes/web de Lo Prado combinado con un panel web ultra simple para carga manual por parte de organizaciones comunitarias.
+## Contenido
 
-Detalle de la Opción C: Integración de Transporte
+- [Qué es](#qué-es)
+- [Documentación](#documentación)
+- [Stack](#stack)
+- [Inicio rápido](#inicio-rápido)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Scripts](#scripts)
+- [Roadmap](#roadmap)
+- [Development](#development)
+- [Build with Lovable](#build-with-lovable)
 
-Para adultos mayores, la integración de transporte no debe ser compleja. Consta de dos niveles:
+## Qué es
 
-Llamada directa a Radio Taxis Locales: Un botón grande que permita llamar por teléfono directamente a líneas de radio taxis que operen en Lo Prado o comunas adyacentes (Pudahuel, Estación Central). Evita la fricción de manejar apps.
+Plataforma **web mobile-first** (siguiente etapa: PWA) que resuelve un flujo único con excelencia: **descubrir → entender → llegar**.
 
-Deep-Linking a Apps de Transporte (Uber/Cabify/DiDi): Un botón que abra la app con el destino ya ingresado (ej. "Pedir auto a esta actividad"), ahorrándoles escribir la dirección.
+- Sin registro ni inicio de sesión; 1–2 tarjetas grandes por pantalla.
+- Filtro por distancia caminable o en micro directa (800 m / 1500 m / 2500 m).
+- Ficha con baño y estacionamiento siempre explícitos (`sí` / `no` / `sin información`).
+- Módulo “Cómo llegar” en lenguaje natural + Google Maps; integración de transporte a alto nivel (ver [`docs/04-integracion-transporte.md`](./docs/04-integracion-transporte.md)).
 
-Investigación del Radio de Distancia ("Cerca")
+> [!NOTE]
+> La plataforma original del PRD era Android nativo / Flutter. La dirección vigente es **web primero, luego PWA**. Ver [`docs/01-vision-general.md`](./docs/01-vision-general.md#evolución-de-plataforma-del-prd-original-a-la-web-actual) y [`docs/07-arquitectura-y-stack.md`](./docs/07-arquitectura-y-stack.md#evolución-web-primero-luego-pwa).
 
-Distancia caminable (Paso pausado): 500 a 800 metros (aprox. 5 a 8 cuadras). Toma entre 10 y 15 minutos caminando y es el límite recomendado para personas con movilidad reducida leve.
+## Documentación
 
-Transporte público (Red Movilidad): Hasta 2,5 km si el trayecto requiere solo 1 micro directa (sin transbordos ni combinación de Metro).
+Toda la documentación vive en [`docs/`](./docs/README.md). El índice maestro explica cómo leerla.
 
-Documento de Requisitos del Producto (PRD)
+| Documento | Descripción |
+|-----------|-------------|
+| [docs/README.md](./docs/README.md) | **Índice maestro** — leyenda de estados y guía de lectura. |
+| [docs/01-vision-general.md](./docs/01-vision-general.md) | Visión, público 60+, alcance Lo Prado y evolución de plataforma. |
+| [docs/02-estrategia-adquisicion-actividades.md](./docs/02-estrategia-adquisicion-actividades.md) | **Estrategia de Adquisición de Actividades** — APIs, scraping, IA+Web Search, carga manual y recomendación híbrida. |
+| [docs/03-nucleo-descubrimiento-actividades.md](./docs/03-nucleo-descubrimiento-actividades.md) | Núcleo: listado, filtro por radio, tarjeta y ficha de detalle. |
+| [docs/04-integracion-transporte.md](./docs/04-integracion-transporte.md) | Transporte a alto nivel (radio taxi + deep-link apps) — ⏳ pendiente detalle implementación. |
+| [docs/05-concepto-cerca-radio-distancia.md](./docs/05-concepto-cerca-radio-distancia.md) | Qué significa “cerca”: 500–800 m caminable, hasta 2,5 km en micro directa. |
+| [docs/06-requisitos-producto.md](./docs/06-requisitos-producto.md) | **PRD completo** — funcionales y no funcionales con checkboxes de MVP. |
+| [docs/07-arquitectura-y-stack.md](./docs/07-arquitectura-y-stack.md) | Stack real actual y evolución hacia PWA. |
+| [docs/08-roadmap.md](./docs/08-roadmap.md) | Timeline por fases y próximos pasos. |
 
-1. Visión General del Producto
+## Stack
 
-Nombre del Proyecto: Actividad Fácil
+| Capa | Tecnología |
+|------|------------|
+| Framework | TanStack Start (React 19) + TanStack Router + Vite 8 |
+| Datos | Supabase (Postgres + RLS) — tablas `actividades` y `sugerencias` |
+| UI | Tailwind CSS 4 + shadcn / Radix UI |
+| Validación | Zod + React Hook Form |
 
-Objetivo: Conectar a los adultos mayores de la comuna de Lo Prado con actividades gratuitas o de bajo costo cercanas a su hogar mediante una interfaz móvil de fricción cero.
+Detalle completo en [`docs/07-arquitectura-y-stack.md`](./docs/07-arquitectura-y-stack.md).
 
-Plataforma: Android (Nativo o Flutter/React Native).
+## Inicio rápido
 
-Ubicación Piloto: Comuna de Lo Prado, Santiago de Chile.
+Requisitos: Node.js 18+ y npm (o bun). Recomendado instalar con [nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
-2. Público Objetivo y Perfil de Usuario
+```sh
+# 1. Clonar e instalar
+git clone <this-repository-url>
+cd conexi-n-mayor
+npm i
 
-Usuario Principal: Adultos mayores (60+ años) con alfabetización digital básica o intermedia, posible visión disminuida o motricidad fina reducida.
+# 2. Variables de entorno (solo servidor — nunca commitear .env)
+cp .env.example .env
+# Editar .env con SB_URL, SB_PUBLISHABLE_KEY y SB_SECRET_KEY
+# Valores en: Supabase Dashboard → Project Settings → API
 
-Necesidades Clave: Interfaz limpia, información legible, pasos claros para llegar y certeza de los servicios del lugar (baños/estacionamiento).
+# 3. Crear esquema y datos seed en Supabase
+# Supabase Dashboard → SQL Editor → New query → pegar supabase/schema.sql completo → Run
+# Debe devolver 5 filas en: SELECT * FROM public.actividades WHERE estado='publicada';
 
-3. Requisitos Funcionales (MVP)
+# 4. Desarrollo
+npm run dev
+# Abre http://localhost:3000
 
-Acceso y Navegación:
+# 5. (Opcional) Verificar datos sin Supabase
+# Si .env no está configurado, la app usa el fallback mock de src/data/actividades.ts
+```
 
-Navegación libre e inmediata sin requerir registro o inicio de sesión.
+> [!IMPORTANT]
+> Las claves `SB_*` son **solo de servidor** (Nitro). No uses prefijo `VITE_` y no expongas `SB_SECRET_KEY` al cliente. Ver [`.env.example`](./.env.example) y [`docs/07-arquitectura-y-stack.md`](./docs/07-arquitectura-y-stack.md#variables-de-entorno).
 
-Diseño de pantalla simplificada: Muestra un máximo de 1 a 2 tarjetas de actividades por pantalla en formato vertical grande.
+## Estructura del proyecto
 
-Descubrimiento de Actividades:
+```
+├── docs/                  # Documentación (índice + 8 guías)
+├── public/                # Estáticos
+├── src/
+│   ├── components/        # UI (shadcn) + componentes de dominio
+│   ├── data/actividades.ts # Tipos, RADIO_OPCIONES, RADIO_TAXIS (ejemplo), fallback mock
+│   ├── lib/               # Server functions (Supabase)
+│   ├── routes/            # Rutas file-based (/, /actividad.$id, /sugerencias, /db)
+│   └── styles.css         # Tailwind base
+├── supabase/schema.sql    # Esquema autoritativo (tipos, tablas, RLS, seed)
+├── vite.config.ts         # Wrapper sobre @lovable.dev/vite-tanstack-config
+└── package.json
+```
 
-Filtro automático por geolocalización dentro de un radio configurable de 800m a 2.5 km.
+## Scripts
 
-Visualización clara de: Nombre, Fecha/Hora, Lugar exacto, Gratuito / De Pago.
+| Comando | Descripción |
+|---------|-------------|
+| `npm run dev` | Servidor de desarrollo (Vite) |
+| `npm run build` | Build de producción |
+| `npm run preview` | Previsualizar build |
+| `npm run lint` | ESLint |
+| `npm run format` | Prettier |
 
-Ficha de Detalles del Lugar:
+## Roadmap
 
-Baños: Muestra si cuenta con baño disponible (o "Sin información").
+```
+Fase 0  template tanstack_start_ts (0f401e5)
+Fase 1  MVP Actividad Fácil (0e5e3b9)
+Fase 2  Réplica Ciudad Viva Mayor — diseño referencia (e1abf19)
+Fase 3  Supabase conectado — schema + RLS + seed (7cfb336 / a6a31cd / 1f61d23)
+Fase 4  Lista del barrio + unificación diseño (2ec5e7b) + merge (7b60b28)
+Ahora  Estabilización web + docs/
+Próximo  PWA · Automatizar adquisición · Transporte detallado · Validación Oficina Adulto Mayor
+```
 
-Estacionamiento: Muestra disponibilidad (o "Sin información").
-
-Módulo de Transporte e Indicaciones:
-
-Texto descriptivo con instrucciones de llegada (ej. "Llegar en micro J10, bajarse en San Pablo con Las Rejas").
-
-Botón directo a Google Maps.
-
-Botón para llamar a Radio Taxi local o abrir app de transporte.
-
-Canal de Feedback:
-
-Botón accesible en el menú principal para enviar sugerencias o reportar errores de manera simple.
-
-4. Requisitos No Funcionales (UX/UI y Accesibilidad)
-
-Tipografía: Tamaño mínimo de fuente de 18sp para textos generales y 24sp para títulos.
-
-Contraste: Cumplimiento de estándares WCAG AAA (alto contraste de texto negro sobre fondos claros o amarillos).
-
-Área de Toque: Botones con un tamaño mínimo de 48 \times 48\text{ dp} para evitar toques accidentales.
-
-Publicidad: 0\% banners publicitarios, ventanas emergentes o notificaciones invasivas.
-
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/a690934b-bfd5-4300-84f1-3a1ea437414d).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Detalle por fase en [`docs/08-roadmap.md`](./docs/08-roadmap.md).
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Trabajo local recomendado:
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
+- Node.js + npm vía nvm; `npm run dev` levanta el entorno en `http://localhost:3000`.
+- Antes de tocar estilos o rutas, revisa [`docs/03-nucleo-descubrimiento-actividades.md`](./docs/03-nucleo-descubrimiento-actividades.md) y [`docs/06-requisitos-producto.md`](./docs/06-requisitos-producto.md) para no romper requisitos de accesibilidad (WCAG AAA, 18sp/24sp, 48×48 dp, 0 % publicidad).
+- Cambios en el modelo de datos: editar [`supabase/schema.sql`](./supabase/schema.sql) (idempotente) y reflejar en [`src/data/actividades.ts`](./src/data/actividades.ts) si afecta tipos o constantes.
+
+## Build with Lovable
+
+Este proyecto fue creado con [Lovable](https://lovable.dev) y permanece sincronizado con su editor.
+
+- **Editor:** [a690934b-bfd5-4300-84f1-3a1ea437414d](https://lovable.dev/projects/a690934b-bfd5-4300-84f1-3a1ea437414d) — cada cambio en Lovable se commitea a este repositorio.
+- **Propiedad total:** el código es tuyo; `git push` a `main` sincroniza de vuelta a Lovable.
+- Evita reescribir historial publicado (`rebase` / `force push` sobre commits ya sincronizados).
+
+---
+
+¿Primera vez aquí? Empieza por [`docs/README.md`](./docs/README.md) → [`docs/01-vision-general.md`](./docs/01-vision-general.md).
