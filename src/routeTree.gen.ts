@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GrokRouteImport } from './routes/grok'
+import { Route as GroqRouteImport } from './routes/groq'
 import { Route as SugerenciasRouteImport } from './routes/sugerencias'
 import { Route as ActividadIdRouteImport } from './routes/actividad.$id'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const GrokRoute = GrokRouteImport.update({
   id: '/grok',
   path: '/grok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GroqRoute = GroqRouteImport.update({
+  id: '/groq',
+  path: '/groq',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SugerenciasRoute = SugerenciasRouteImport.update({
@@ -38,12 +44,14 @@ const ActividadIdRoute = ActividadIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/grok': typeof GrokRoute
+  '/groq': typeof GroqRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/grok': typeof GrokRoute
+  '/groq': typeof GroqRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/grok': typeof GrokRoute
+  '/groq': typeof GroqRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/grok' | '/sugerencias' | '/actividad/$id'
+  fullPaths: '/' | '/grok' | '/groq' | '/sugerencias' | '/actividad/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/grok' | '/sugerencias' | '/actividad/$id'
-  id: '__root__' | '/' | '/grok' | '/sugerencias' | '/actividad/$id'
+  to: '/' | '/grok' | '/groq' | '/sugerencias' | '/actividad/$id'
+  id: '__root__' | '/' | '/grok' | '/groq' | '/sugerencias' | '/actividad/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GrokRoute: typeof GrokRoute
+  GroqRoute: typeof GroqRoute
   SugerenciasRoute: typeof SugerenciasRoute
   ActividadIdRoute: typeof ActividadIdRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/grok'
       fullPath: '/grok'
       preLoaderRoute: typeof GrokRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/groq': {
+      id: '/groq'
+      path: '/groq'
+      fullPath: '/groq'
+      preLoaderRoute: typeof GroqRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sugerencias': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GrokRoute: GrokRoute,
+  GroqRoute: GroqRoute,
   SugerenciasRoute: SugerenciasRoute,
   ActividadIdRoute: ActividadIdRoute,
 }
