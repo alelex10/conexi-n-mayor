@@ -3,12 +3,33 @@
 import type { Actividad } from "@/data/actividades";
 
 export const CHILECULTURA_BASE = "https://chilecultura.gob.cl";
-export const RM_REGION_ID = 13; // spec 13==RM, exploration suggested 1 — confirm before ship
+export const RM_REGION_ID = 13; // provisional RM — confirm 13 vs 1 (spec mandates 13)
 export const CHILECULTURA_USER_AGENT = "CiudadVivaMayor/1.0";
 export const LIST_TTL = 6 * 3600 * 1000;
 export const DETAIL_TTL = 24 * 3600 * 1000;
 export const LIST_CACHE_KEY = "cc:list:13";
 export function detailCacheKey(id: string): string { return `cc:detail:${id}`; }
+export function listCacheKey(region: number): string { return `cc:list:${region}`; }
+
+/** 16 official Chilean regions — id 1..16. RM is provisional 13 per spec (exploration suggested 1). */
+export const REGIONES_CHILE: readonly { id: number; nombre: string }[] = [
+  { id: 1, nombre: "Tarapacá" },
+  { id: 2, nombre: "Antofagasta" },
+  { id: 3, nombre: "Atacama" },
+  { id: 4, nombre: "Coquimbo" },
+  { id: 5, nombre: "Valparaíso" },
+  { id: 6, nombre: "O'Higgins" },
+  { id: 7, nombre: "Maule" },
+  { id: 8, nombre: "Biobío" },
+  { id: 9, nombre: "Araucanía" },
+  { id: 10, nombre: "Los Lagos" },
+  { id: 11, nombre: "Aysén" },
+  { id: 12, nombre: "Magallanes" },
+  { id: 13, nombre: "Metropolitana" },
+  { id: 14, nombre: "Los Ríos" },
+  { id: 15, nombre: "Arica y Parinacota" },
+  { id: 16, nombre: "Ñuble" },
+] as const;
 
 export type RawEvent = {
   id: number; name: string; description: string; venue_name: string; commune: string;
@@ -134,6 +155,62 @@ export async function fetchListaCached(): Promise<Actividad[]> {
     console.warn("[chilecultura] fetchListaCached failed — returning cached or empty", e);
     return getCached<Actividad[]>(LIST_CACHE_KEY) ?? [];
   }
+}
+
+export type FetchMultiResult = {
+  raw: RawEvent[];
+  actividades: Actividad[];
+  cachedAt: number;
+  fromCache: boolean;
+  error?: string;
+};
+
+/**
+ * Sequential per-region fetch with 400ms gap, 8s abort/page, per-region cache cc:list:{region} 6h SWR.
+ * Per-region try/catch — failure does not abort other regions. Apex assert, no ?commune.
+ */
+export async function fetchListaMultiRegion(
+  regiones: number[],
+  opts?: { force?: boolean; pages?: number; pageSize?: number },
+): Promise<Map<number, FetchMultiResult>> {
+  const pages = opts?.pages ?? 1;
+  const pageSize = opts?.pageSize ?? 50;
+  const force = opts?.force ?? false;
+  const result = new Map<number, FetchMultiResult>();
+  // cap 6, filter 1..16 already handled by caller; defensive slice
+  const ids = regiones.filter((n) => Number.isInteger(n) && n >= 1 && n <= 16).slice(0, 6);
+  for (let i = 0; i < ids.length; i++) {
+    const region = ids[i]!;
+    const key = listCacheKey(region);
+    if (!force && isCacheValid(key, LIST_TTL)) {
+      const cached = getCached<Actividad[]>(key);
+      if (cached) {
+        const at = (getCache().get(key) as CacheEntry<Actividad[]> | undefined)?.at ?? Date.now();
+        result.set(region, { raw: [], actividades: cached, cachedAt: at, fromCache: true });
+        if (i < ids.length - 1) await sleep(400);
+        continue;
+      }
+    }
+    try {
+      const raw = await fetchLista({ region, pageSize, pages });
+      const actividades = raw.map((r) => mapToActividad(r));
+      setCached(key, actividades);
+      const at = (getCache().get(key) as CacheEntry<Actividad[]> | undefined)?.at ?? Date.now();
+      result.set(region, { raw, actividades, cachedAt: at, fromCache: false });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[chilecultura] region ${region} fetch failed`, e);
+      const cached = getCached<Actividad[]>(key);
+      if (cached) {
+        const at = (getCache().get(key) as CacheEntry<Actividad[]> | undefined)?.at ?? Date.now();
+        result.set(region, { raw: [], actividades: cached, cachedAt: at, fromCache: true, error: msg });
+      } else {
+        result.set(region, { raw: [], actividades: [], cachedAt: Date.now(), fromCache: false, error: msg });
+      }
+    }
+    if (i < ids.length - 1) await sleep(400);
+  }
+  return result;
 }
 
 export async function fetchDetalle(id: string): Promise<DetailParsed | null> {
