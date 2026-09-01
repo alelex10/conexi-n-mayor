@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GrokRouteImport } from './routes/grok'
 import { Route as SugerenciasRouteImport } from './routes/sugerencias'
 import { Route as ActividadIdRouteImport } from './routes/actividad.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GrokRoute = GrokRouteImport.update({
+  id: '/grok',
+  path: '/grok',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SugerenciasRoute = SugerenciasRouteImport.update({
@@ -31,30 +37,34 @@ const ActividadIdRoute = ActividadIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/grok': typeof GrokRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/grok': typeof GrokRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/grok': typeof GrokRoute
   '/sugerencias': typeof SugerenciasRoute
   '/actividad/$id': typeof ActividadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sugerencias' | '/actividad/$id'
+  fullPaths: '/' | '/grok' | '/sugerencias' | '/actividad/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/sugerencias' | '/actividad/$id'
-  id: '__root__' | '/' | '/sugerencias' | '/actividad/$id'
+  to: '/' | '/grok' | '/sugerencias' | '/actividad/$id'
+  id: '__root__' | '/' | '/grok' | '/sugerencias' | '/actividad/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GrokRoute: typeof GrokRoute
   SugerenciasRoute: typeof SugerenciasRoute
   ActividadIdRoute: typeof ActividadIdRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/grok': {
+      id: '/grok'
+      path: '/grok'
+      fullPath: '/grok'
+      preLoaderRoute: typeof GrokRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sugerencias': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GrokRoute: GrokRoute,
   SugerenciasRoute: SugerenciasRoute,
   ActividadIdRoute: ActividadIdRoute,
 }
