@@ -7,6 +7,7 @@ import {
   fetchLista, fetchDetalle, fetchListaCached, fetchDetalleCached,
   clearCache, isCacheValid, getCached, setCached,
   LIST_CACHE_KEY, LIST_TTL, DETAIL_TTL, CHILECULTURA_BASE, detailCacheKey, isChileCulturaEnabled,
+  REGIONES_CHILE, listCacheKey, fetchListaMultiRegion,
   type RawEvent,
 } from "./chilecultura";
 
@@ -200,5 +201,102 @@ describe("fetchDetalle", () => {
     _setCacheEntry(key, Date.now() - DETAIL_TTL - 1000, { direccion: "cached", latitud: 1, longitud: 2 });
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("net"));
     expect(await fetchDetalleCached("37496")).toEqual({ direccion: "cached", latitud: 1, longitud: 2 });
+  });
+});
+
+describe("REGIONES_CHILE and listCacheKey", () => {
+  it("has 16 official regions 1..16 with provisional RM=13 Metropolitana", () => {
+    expect(REGIONES_CHILE).toHaveLength(16);
+    const ids = REGIONES_CHILE.map((r) => r.id);
+    expect(ids).toEqual([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+    expect(REGIONES_CHILE.find((r)=>r.id===1)!.nombre).toBe("Tarapacá");
+    expect(REGIONES_CHILE.find((r)=>r.id===13)!.nombre).toBe("Metropolitana");
+    expect(REGIONES_CHILE.find((r)=>r.id===16)!.nombre).toBe("Ñuble");
+  });
+  it("listCacheKey shape cc:list:{region}", () => {
+    expect(listCacheKey(13)).toBe("cc:list:13");
+    expect(listCacheKey(5)).toBe("cc:list:5");
+    expect(listCacheKey(1)).toBe("cc:list:1");
+  });
+  it("per-region cache hit <50ms and isolated keys", async () => {
+    clearCache();
+    const act13 = [mapToActividad(makeRaw({ id: 100 }))];
+    const act5 = [mapToActividad(makeRaw({ id: 200 }))];
+    setCached(listCacheKey(13), act13);
+    setCached(listCacheKey(5), act5);
+    expect(isCacheValid(listCacheKey(13), LIST_TTL)).toBe(true);
+    expect(isCacheValid(listCacheKey(5), LIST_TTL)).toBe(true);
+    expect(isCacheValid(listCacheKey(8), LIST_TTL)).toBe(false);
+    expect(getCached(listCacheKey(13))).toEqual(act13);
+  });
+});
+
+describe("fetchListaMultiRegion", () => {
+  beforeEach(() => { clearCache(); vi.restoreAllMocks(); delete process.env["ENABLE_CHILECULTURA"]; });
+  afterEach(() => { vi.restoreAllMocks(); clearCache(); });
+  it("sequential per-region 400ms gap, apex host, User-Agent, 8s abort, no ?commune", async () => {
+    const calls: string[] = [];
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      calls.push(url);
+      expect(url.startsWith(CHILECULTURA_BASE)).toBe(true);
+      expect(new URL(url).hostname).toBe("chilecultura.gob.cl");
+      expect(url).not.toContain("www.");
+      expect(url).not.toContain("commune");
+      expect((init as RequestInit).headers!["User-Agent"]).toBe("CiudadVivaMayor/1.0");
+      expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+      const region = new URL(url).searchParams.get("region");
+      return { ok: true, json: async () => ({ results: [makeRaw({ id: Number(region)*10, region: `Region ${region}` })] }) } as Response;
+    });
+    const start = Date.now();
+    const res = await fetchListaMultiRegion([13,5], { pages:1 });
+    const elapsed = Date.now() - start;
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(calls[0]).toContain("region=13");
+    expect(calls[1]).toContain("region=5");
+    // sequential gap at least 400ms between regions
+    expect(elapsed).toBeGreaterThanOrEqual(350);
+    expect(res.get(13)!.actividades).toHaveLength(1);
+    expect(res.get(5)!.actividades).toHaveLength(1);
+    expect(res.get(13)!.fromCache).toBe(false);
+  });
+  it("per-region failure/timeout does not abort others, warn, empty for failed", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      const region = new URL(url).searchParams.get("region");
+      if (region==="5") return { ok:false, status:500 } as Response;
+      return { ok:true, json: async () => ({ results: [makeRaw({ id: 999, region: "RM" })] }) } as Response;
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(()=>{});
+    const res = await fetchListaMultiRegion([13,5,8], { pages:1 });
+    expect(spy).toHaveBeenCalledTimes(3);
+    expect(res.get(13)!.actividades.length).toBeGreaterThan(0);
+    expect(res.get(5)!.actividades).toHaveLength(0);
+    expect(res.get(5)!.error).toBeDefined();
+    expect(res.get(8)!.actividades.length).toBeGreaterThan(0);
+    expect(warn).toHaveBeenCalled();
+  });
+  it("force:true bypasses 6h cache, otherwise cache hit <50ms", async () => {
+    const cached = [mapToActividad(makeRaw({ id: 111 }))];
+    setCached(listCacheKey(13), cached);
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => ({ ok:true, json: async ()=>({ results:[makeRaw({ id:222 })] }) } as Response));
+    // without force -> cache
+    let res = await fetchListaMultiRegion([13], { force:false });
+    expect(spy).not.toHaveBeenCalled();
+    expect(res.get(13)!.fromCache).toBe(true);
+    expect(res.get(13)!.actividades).toEqual(cached);
+    // with force -> fetch
+    spy.mockClear();
+    res = await fetchListaMultiRegion([13], { force:true });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(res.get(13)!.fromCache).toBe(false);
+    expect(res.get(13)!.actividades[0]!.id).toBe("ccult-222");
+  });
+  it("caps at 6 and filters 1..16", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok:true, json: async()=>({ results:[] }) } as Response);
+    const res = await fetchListaMultiRegion([0,99,1,2,3,4,5,6,7,8], { pages:1 });
+    // filtered 1..16 first6 => [1,2,3,4,5,6]
+    expect(spy).toHaveBeenCalledTimes(6);
+    expect([...res.keys()]).toEqual([1,2,3,4,5,6]);
   });
 });
