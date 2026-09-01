@@ -130,6 +130,95 @@ function dedupeSortSlice(list: Actividad[]): Actividad[] {
   return deduped.slice(0, 50);
 }
 
+/** Experimental multi-region ChileCultura fetch — isolated from listarActividades. No Supabase. */
+export const listarChileCulturaPorRegiones = createServerFn({ method: "GET" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        regiones: z.array(z.number().int().min(1).max(16)).max(6).optional().default([13]),
+        force: z.boolean().optional().default(false),
+        forzarRecarga: z.boolean().optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data }): Promise<{
+    porRegion: {
+      region: number;
+      regionId: number;
+      nombre: string;
+      regionStrEjemplo: string;
+      count: number;
+      actividades: Actividad[];
+      cachedAt: number;
+      error?: string;
+    }[];
+    total: number;
+    actividades: Actividad[];
+    resultados: Actividad[];
+    latencyMs: number;
+    cachedAt: number;
+    cachedAges: { regionId: number; cachedAt: number }[];
+  }> => {
+    const t0 = Date.now();
+    // normalize alias forzarRecarga -> force
+    const force = data.forzarRecarga ?? data.force ?? false;
+    const inputRegiones = (data.regiones ?? [13]).filter((n) => Number.isInteger(n) && n >= 1 && n <= 16).slice(0, 6);
+    const regiones = inputRegiones.length ? inputRegiones : [13];
+
+    // guard
+    const { isChileCulturaEnabled } = await import("./chilecultura");
+    if (!isChileCulturaEnabled()) {
+      const now = Date.now();
+      return { porRegion: [], total: 0, actividades: [], resultados: [], latencyMs: 0, cachedAt: now, cachedAges: [] };
+    }
+
+    const { fetchListaMultiRegion, REGIONES_CHILE } = await import("./chilecultura");
+    const multi = await fetchListaMultiRegion(regiones, { force, pages: 1 });
+
+    const porRegion: {
+      region: number;
+      regionId: number;
+      nombre: string;
+      regionStrEjemplo: string;
+      count: number;
+      actividades: Actividad[];
+      cachedAt: number;
+      error?: string;
+    }[] = [];
+
+    for (const r of regiones) {
+      const entry = multi.get(r);
+      const nombre = (REGIONES_CHILE as readonly { id: number; nombre: string }[]).find((x) => x.id === r)?.nombre ?? `Región ${r}`;
+      const regionStrEjemplo = entry?.raw?.[0]?.region ?? nombre;
+      const actividades = entry?.actividades ?? [];
+      const cachedAt = entry?.cachedAt ?? Date.now();
+      const error = entry?.error;
+      porRegion.push({
+        region: r,
+        regionId: r,
+        nombre,
+        regionStrEjemplo,
+        count: actividades.length,
+        actividades: actividades.slice(0, 50),
+        cachedAt,
+        ...(error ? { error } : {}),
+      });
+    }
+
+    const flat = dedupeSortSlice(porRegion.flatMap((p) => p.actividades));
+    const total = porRegion.reduce((s, p) => s + p.count, 0);
+    const now = Date.now();
+    return {
+      porRegion,
+      total,
+      actividades: flat,
+      resultados: flat,
+      latencyMs: Date.now() - t0,
+      cachedAt: now,
+      cachedAges: porRegion.map((p) => ({ regionId: p.region, cachedAt: p.cachedAt })),
+    };
+  });
+
 /** Obtiene una actividad publicada por su id. */
 export const obtenerActividad = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ id: z.string().min(1) }).parse(input))
