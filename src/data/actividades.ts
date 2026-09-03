@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 /**
  * Mock fallback dataset — used only when Supabase env (SB_URL / keys) is not configured.
  * Production data now lives in Supabase (supabase/schema.sql) and is fetched via
@@ -22,6 +23,16 @@ export type Actividad = {
   categoria: string;
   descripcion: string;
   estado?: "borrador" | "publicada" | "archivada";
+  /** Data source — 'chilecultura' for external events, undefined for local/Supabase */
+  fuente?: string;
+  /** Original URL for external events (ChileCultura permalink) */
+  url?: string;
+  /** Latitude from detail page #mapDesktop (WGS84) */
+  latitud?: number;
+  /** Longitude from detail page #mapDesktop (WGS84) */
+  longitud?: number;
+  /** Commune string from ChileCultura (e.g. Santiago, Lo Prado) — used for "Aprox. en {commune}" disclosure */
+  commune?: string;
 };
 
 export const RADIO_OPCIONES = [

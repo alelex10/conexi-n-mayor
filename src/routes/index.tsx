@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Accessibility,
@@ -45,9 +46,12 @@ export const Route = createFileRoute("/")({
   }),
   // Loader runs on the server (SSR) via Nitro/Cloudflare — uses Supabase via server function.
   // Falls back to mock data if SB_* env is not yet configured.
+  // NOTA: externos desactivados en home — ChileCultura trae región equivocada
+  // (Magallanes en vez de RM) y distancia sintética que confunde.
+  // Siguen disponibles aislados en /comparar (tab ChileCultura).
   loader: async () => {
     try {
-      const actividades = await listarActividades({ data: { radioMetros: 2500 } });
+      const actividades = await listarActividades({ data: { radioMetros: 2500, incluirExternos: false } });
       return { actividades, radioInicial: 2500 as number };
     } catch (e) {
       console.error("[index loader] failed to load actividades", e);
@@ -64,6 +68,9 @@ function CiudadVivaMayor() {
   const [cargando, setCargando] = useState(false);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [mostrarBarrio, setMostrarBarrio] = useState(false);
+
+  // Temporal: listado del home oculto — se evalúa en /comparar. Poner en true para restaurar.
+  const MOSTRAR_LISTADO_HOME = false;
 
   const actividadesBarrio = [...actividades]
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
@@ -84,7 +91,7 @@ function CiudadVivaMayor() {
     setCargando(true);
     setErrorCarga(null);
     try {
-      const filtradas = await listarActividades({ data: { radioMetros: valor } });
+      const filtradas = await listarActividades({ data: { radioMetros: valor, incluirExternos: false } });
       setActividades(filtradas);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No pudimos cargar las actividades.";
@@ -202,7 +209,8 @@ function CiudadVivaMayor() {
           )}
         </section>
 
-        {/* Sección naranja - Lo más cercano — ahora con datos reales de Supabase */}
+        {/* Sección naranja - Lo más cercano — OCULTA temporal (MOSTRAR_LISTADO_HOME) */}
+        {MOSTRAR_LISTADO_HOME && (
         <section className="mt-6 overflow-hidden rounded-2xl shadow-sm" aria-labelledby="lo-mas-cercano">
           <div className="bg-[#F57C00] p-3 text-center">
             <h2
@@ -241,7 +249,7 @@ function CiudadVivaMayor() {
                   <li key={a.id}>
                     <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
                       <div className="flex flex-col gap-3">
-                        {/* Badges gratuito / categoría */}
+                        {/* Badges gratuito / categoría / fuente */}
                         <div className="flex flex-wrap items-center gap-2">
                           <span
                             className={`inline-block rounded-lg px-3 py-1 text-sm font-extrabold ${
@@ -255,7 +263,15 @@ function CiudadVivaMayor() {
                           <span className="inline-block rounded-lg bg-accent px-3 py-1 text-sm font-bold text-accent-foreground">
                             {a.categoria}
                           </span>
+                          {a.fuente === "chilecultura" && (
+                            <span className="inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-sm font-bold text-[#EF6C00]">
+                              ChileCultura
+                            </span>
+                          )}
                         </div>
+                        {a.fuente === "chilecultura" && a.commune && (
+                          <p className="text-sm font-semibold text-[#5D4037]">Aprox. en {a.commune}</p>
+                        )}
 
                         <h3 className="text-xl font-extrabold leading-tight text-[#5D4037]">
                           <Link
@@ -280,7 +296,14 @@ function CiudadVivaMayor() {
                           </p>
                           <p className="flex items-start gap-2 text-[15px] font-medium leading-snug text-[#424242]">
                             <Footprints className="mt-0.5 size-4 shrink-0 text-[#616161]" aria-hidden />
-                            <span>A {formatearDistancia(a.distanciaMetros)} de su casa</span>
+                            <span>
+                              A {formatearDistancia(a.distanciaMetros)} de su casa
+                              {a.fuente === "chilecultura" && (
+                                <span className="ml-1 text-xs font-semibold text-[#8D6E63]">
+                                  — Distancia estimada — confirmar dirección
+                                </span>
+                              )}
+                            </span>
                           </p>
                           <p className="line-clamp-3 text-[15px] leading-snug text-[#616161]">{a.descripcion}</p>
                           <div className="flex flex-wrap gap-2 pt-1">
@@ -349,8 +372,9 @@ function CiudadVivaMayor() {
             </Link>
           </div>
         </section>
+        )}
 
-      {mostrarBarrio && (
+      {MOSTRAR_LISTADO_HOME && mostrarBarrio && (
         <section
           id="actividades-barrio"
           aria-labelledby="titulo-barrio"
@@ -377,6 +401,11 @@ function CiudadVivaMayor() {
                         {formatearFecha(a.fecha)} {a.hora} - {a.nombre}
                       </span>
                     </h3>
+                    {a.fuente === "chilecultura" && (
+                      <span className="inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-xs font-bold text-[#EF6C00]">
+                        ChileCultura{a.commune ? ` · Aprox. en ${a.commune}` : ""}
+                      </span>
+                    )}
                     <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
                       <MapPin className="size-4 shrink-0 text-[#616161]" aria-hidden />
                       <span>{a.lugar}</span>

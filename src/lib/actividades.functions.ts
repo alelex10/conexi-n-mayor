@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -18,6 +19,9 @@ type FilaActividad = {
   como_llegar: string;
   categoria: string;
   descripcion: string;
+  fuente?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
 };
 
 function aActividad(fila: FilaActividad): Actividad {
@@ -36,11 +40,14 @@ function aActividad(fila: FilaActividad): Actividad {
     comoLlegar: fila.como_llegar,
     categoria: fila.categoria,
     descripcion: fila.descripcion,
+    ...(fila.fuente ? { fuente: fila.fuente } : {}),
+    ...(typeof fila.latitud === "number" ? { latitud: fila.latitud } : {}),
+    ...(typeof fila.longitud === "number" ? { longitud: fila.longitud } : {}),
   };
 }
 
 const COLUMNAS =
-  "id, nombre, fecha, hora, lugar, direccion, gratuito, precio, distancia_metros, bano, estacionamiento, como_llegar, categoria, descripcion";
+  "id, nombre, fecha, hora, lugar, direccion, gratuito, precio, distancia_metros, bano, estacionamiento, como_llegar, categoria, descripcion, fuente, latitud, longitud";
 
 /** Returns true if the error is due to missing SB_* env (build without secrets). */
 function isMissingEnvError(e: unknown): boolean {
@@ -50,9 +57,16 @@ function isMissingEnvError(e: unknown): boolean {
 /** Lista las actividades publicadas, opcionalmente filtradas por radio en metros. */
 export const listarActividades = createServerFn({ method: "GET" })
   .validator((input: unknown) =>
-    z.object({ radioMetros: z.number().int().positive().optional() }).parse(input ?? {}),
+    z
+      .object({
+        radioMetros: z.number().int().positive().optional(),
+        incluirExternos: z.boolean().optional().default(true),
+      })
+      .parse(input ?? {}),
   )
   .handler(async ({ data }): Promise<Actividad[]> => {
+    // 1) Fetch Supabase (or mock fallback) first
+    let base: Actividad[];
     try {
       const { getPublicClient } = await import("./supabase.server");
       let consulta = getPublicClient()
@@ -66,25 +80,61 @@ export const listarActividades = createServerFn({ method: "GET" })
 
       const { data: filas, error } = await consulta;
       if (error) throw new Error(error.message);
-      return ((filas ?? []) as FilaActividad[]).map(aActividad);
+      base = ((filas ?? []) as FilaActividad[]).map(aActividad);
     } catch (e) {
       if (isMissingEnvError(e)) {
         // Fallback to mock data when Supabase env is not configured (local build / preview without secrets).
-        // This keeps the UI functional before the human runs schema.sql + sets secrets.
         console.warn("[actividades.functions] Supabase not configured — falling back to mock data.", e);
         const { ACTIVIDADES } = await import("@/data/actividades");
         const limite = data.radioMetros;
         const filtradas = limite ? ACTIVIDADES.filter((a) => a.distanciaMetros <= limite) : ACTIVIDADES;
-        return [...filtradas].sort((a, b) => a.distanciaMetros - b.distanciaMetros);
+        base = [...filtradas].sort((a, b) => a.distanciaMetros - b.distanciaMetros);
+      } else {
+        throw e;
       }
-      throw e;
+    }
+
+    // 2) Merge ChileCultura external when enabled
+    if (!data.incluirExternos) return dedupeSortSlice(base);
+
+    try {
+      const { isChileCulturaEnabled, fetchListaCached } = await import("./chilecultura");
+      if (!isChileCulturaEnabled()) return dedupeSortSlice(base);
+      const externas = await fetchListaCached();
+      // fetchListaCached already maps to Actividad with fuente=chilecultura and synthetic distanciaMetros=1500
+      // Graceful fallback: if fetch returns empty, just return base
+      if (!externas.length) return dedupeSortSlice(base);
+      const merged = [...base, ...externas];
+      return dedupeSortSlice(merged);
+    } catch (e) {
+      console.warn("[actividades.functions] ChileCultura fetch failed — returning Supabase-only", e);
+      return dedupeSortSlice(base);
     }
   });
+
+function dedupeSortSlice(list: Actividad[]): Actividad[] {
+  const seen = new Set<string>();
+  const deduped: Actividad[] = [];
+  for (const a of list) {
+    if (!seen.has(a.id)) {
+      seen.add(a.id);
+      deduped.push(a);
+    }
+  }
+  // Sort by fecha/hora ASC as per spec, then slice 0..50
+  deduped.sort((a, b) => {
+    const d = a.fecha.localeCompare(b.fecha);
+    if (d !== 0) return d;
+    return a.hora.localeCompare(b.hora);
+  });
+  return deduped.slice(0, 50);
+}
 
 /** Obtiene una actividad publicada por su id. */
 export const obtenerActividad = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ id: z.string().min(1) }).parse(input))
   .handler(async ({ data }): Promise<Actividad | null> => {
+    // 1) Try Supabase first (or mock)
     try {
       const { getPublicClient } = await import("./supabase.server");
       const { data: fila, error } = await getPublicClient()
@@ -94,14 +144,59 @@ export const obtenerActividad = createServerFn({ method: "GET" })
         .eq("id", data.id)
         .maybeSingle();
       if (error) throw new Error(error.message);
-      return fila ? aActividad(fila as FilaActividad) : null;
+      if (fila) return aActividad(fila as FilaActividad);
     } catch (e) {
       if (isMissingEnvError(e)) {
         console.warn("[actividades.functions] Supabase not configured — falling back to mock for obtenerActividad.", e);
         const { ACTIVIDADES } = await import("@/data/actividades");
-        return ACTIVIDADES.find((a) => a.id === data.id) ?? null;
+        const found = ACTIVIDADES.find((a) => a.id === data.id);
+        if (found) return found;
+        // If not found in mock and is ccult-, continue to ChileCultura fallback below
+        if (!data.id.startsWith("ccult-")) return null;
+      } else {
+        throw e;
       }
-      throw e;
+    }
+
+    // 2) Fallback to ChileCultura for ccult-* ids
+    if (!data.id.startsWith("ccult-")) return null;
+
+    try {
+      const { isChileCulturaEnabled, fetchDetalleCached, fetchLista, mapToActividad, getCached } = await import("./chilecultura");
+
+      if (!isChileCulturaEnabled()) return null;
+
+      // Try to find in cached lista first (fast path — avoids extra fetch)
+      const cachedLista = getCached<Actividad[]>("cc:list:13");
+      if (cachedLista) {
+        const hit = cachedLista.find((a) => a.id === data.id);
+        if (hit) {
+          // Enrich with detail if available
+          const detail = await fetchDetalleCached(data.id).catch(() => null);
+          if (detail && (detail.direccion || detail.precio || detail.latitud || detail.longitud)) {
+            return {
+              ...hit,
+              ...(detail.direccion ? { direccion: detail.direccion } : {}),
+              ...(detail.precio ? { precio: detail.precio } : {}),
+              ...(typeof detail.latitud === "number" ? { latitud: detail.latitud } : {}),
+              ...(typeof detail.longitud === "number" ? { longitud: detail.longitud } : {}),
+            };
+          }
+          return hit;
+        }
+      }
+
+      // Otherwise fetch raw list and find matching id
+      const rawList = await fetchLista().catch(() => []);
+      const rawId = data.id.replace(/^ccult-/, "");
+      const raw = rawList.find((r) => String(r.id) === rawId);
+      if (!raw) return null;
+
+      const detail = await fetchDetalleCached(data.id).catch(() => null);
+      return mapToActividad(raw, detail ?? undefined);
+    } catch (e) {
+      console.warn(`[actividades.functions] ChileCultura detail fetch failed for ${data.id}`, e);
+      return null;
     }
   });
 
