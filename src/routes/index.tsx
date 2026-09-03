@@ -69,6 +69,9 @@ function CiudadVivaMayor() {
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [mostrarBarrio, setMostrarBarrio] = useState(false);
 
+  // Temporal: listado del home oculto — se evalúa en /comparar. Poner en true para restaurar.
+  const MOSTRAR_LISTADO_HOME = false;
+
   const actividadesBarrio = [...actividades]
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
     .slice(0, 10);
@@ -206,7 +209,8 @@ function CiudadVivaMayor() {
           )}
         </section>
 
-        {/* Sección naranja - Lo más cercano — ahora con datos reales de Supabase */}
+        {/* Sección naranja - Lo más cercano — OCULTA temporal (MOSTRAR_LISTADO_HOME) */}
+        {MOSTRAR_LISTADO_HOME && (
         <section className="mt-6 overflow-hidden rounded-2xl shadow-sm" aria-labelledby="lo-mas-cercano">
           <div className="bg-[#F57C00] p-3 text-center">
             <h2
@@ -368,8 +372,9 @@ function CiudadVivaMayor() {
             </Link>
           </div>
         </section>
+        )}
 
-      {mostrarBarrio && (
+      {MOSTRAR_LISTADO_HOME && mostrarBarrio && (
         <section
           id="actividades-barrio"
           aria-labelledby="titulo-barrio"
