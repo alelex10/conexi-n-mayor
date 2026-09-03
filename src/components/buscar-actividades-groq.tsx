@@ -37,14 +37,26 @@ type GroqModelUI = {
 
 const FALLBACK_MODELS: GroqModelUI[] = [
   {
+    id: "openai/gpt-oss-120b",
+    label: "GPT OSS 120B (recomendado)",
+    description: "Recomendado — verificado 2026-09-03: único que pasa response_format json_object con el prompt de actividades; default para búsqueda",
+    contextWindow: 131072,
+    pricingIn: "$0.15 / 1M",
+    pricingOut: "$0.60 / 1M",
+    pricing: "$0.15 / $0.60 por 1M",
+    recommended: true,
+    vision: false,
+    supportsLiveSearch: false,
+  },
+  {
     id: "qwen/qwen3.6-27b",
     label: "Qwen 3 27B",
-    description: "Recomendado — Qwen 3.6 27B rápido y económico para búsqueda de actividades por ubicación",
+    description: "Qwen 3.6 27B — NO usar con response_format json_object para búsqueda de actividades (Groq 400 json_validate_failed verificado 2026-09-03); solo con retry sin formato",
     contextWindow: 131072,
     pricingIn: "$0.60 / 1M",
     pricingOut: "$3.00 / 1M",
     pricing: "$0.60 / $3.00 por 1M",
-    recommended: true,
+    recommended: false,
     vision: true,
     supportsLiveSearch: false,
   },
@@ -60,21 +72,9 @@ const FALLBACK_MODELS: GroqModelUI[] = [
     vision: true,
     supportsLiveSearch: false,
   },
-  {
-    id: "openai/gpt-oss-120b",
-    label: "GPT OSS 120B (no-vision fallback)",
-    description: "Fallback texto — sin visión, útil como referencia",
-    contextWindow: 131072,
-    pricingIn: "$0.15 / 1M",
-    pricingOut: "$0.60 / 1M",
-    pricing: "$0.15 / $0.60 por 1M",
-    recommended: false,
-    vision: false,
-    supportsLiveSearch: false,
-  },
 ];
 
-const DEFAULT_MODEL = "qwen/qwen3.6-27b";
+const DEFAULT_MODEL = "openai/gpt-oss-120b";
 
 const CATEGORIAS = [
   { value: "", label: "Todas" },

@@ -43,7 +43,7 @@ function GroqPage() {
             Potenciado por <strong>Groq</strong> (simula búsqueda web vía LLM — sin Live Search nativo). Patrón copiado de{" "}
             <code className="rounded bg-muted px-1 font-mono text-xs">feat/ai-groq-extractor</code> pero en dominio{" "}
             <em>web search</em> en vez de <em>vision</em>. Modelo por defecto{" "}
-            <code className="rounded bg-muted px-1 font-mono text-xs">qwen/qwen3.6-27b</code> ($0.60/$3.00 por 1M).
+            <code className="rounded bg-muted px-1 font-mono text-xs">openai/gpt-oss-120b</code> ($0.15/$0.60 por 1M).
           </p>
         </div>
 
