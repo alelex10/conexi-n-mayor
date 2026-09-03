@@ -20,19 +20,19 @@ export type GroqVisionModel = {
   vision: boolean;
 };
 
-export const DEFAULT_GROQ_MODEL = "qwen/qwen3.6-27b";
+export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 
 export const GROQ_VISION_MODELS: readonly GroqVisionModel[] = [
   {
     id: "qwen/qwen3.6-27b",
     label: "Qwen 3 27B Vision",
-    description: "Recomendado — Qwen 3.6 27B con visión nativa, rápido y económico para afiches (reemplaza Llama 4 Scout deprecado 17/07/2026)",
+    description: "Qwen 3.6 27B — NO usar con response_format json_object para búsqueda de actividades (Groq 400 json_validate_failed verificado 2026-09-03); solo con retry sin formato",
     contextWindow: 131072,
     maxImages: 5,
     speed: "594 TPS",
     pricingIn: "$0.60 / 1M",
     pricingOut: "$3.00 / 1M",
-    recommended: true,
+    recommended: false,
     vision: true,
   },
   {
@@ -49,14 +49,14 @@ export const GROQ_VISION_MODELS: readonly GroqVisionModel[] = [
   },
   {
     id: "openai/gpt-oss-120b",
-    label: "GPT OSS 120B (no-vision fallback)",
-    description: "Fallback texto — sin visión, útil como referencia de pricing; no usar para afiches",
+    label: "GPT OSS 120b (recomendado texto)",
+    description: "Recomendado — verificado 2026-09-03: único que pasa response_format json_object con el prompt de actividades; default para búsqueda",
     contextWindow: 131072,
     maxImages: null,
     speed: "~400 TPS",
     pricingIn: "$0.15 / 1M",
     pricingOut: "$0.60 / 1M",
-    recommended: false,
+    recommended: true,
     vision: false,
   },
 ] as const;

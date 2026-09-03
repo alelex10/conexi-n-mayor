@@ -129,7 +129,7 @@ export function getGroqClient(): OpenAI {
 /**
  * Resuelve el modelo Groq a usar.
  * Prioridad: input model > env AI_EXTRACTOR_MODEL > GROQ_MODEL_OVERRIDE > AI_EXTRACTOR_MODEL_OVERRIDE > DEFAULT_GROQ_MODEL
- * DEFAULT = qwen/qwen3.6-27b (recomendado, vision, 131K). Fallback documentado: qwen/qwen3.8-27b, openai/gpt-oss-120b
+ * DEFAULT = openai/gpt-oss-120b (verificado 2026-09-03: único que pasa json_object con el prompt de actividades).
  * Copiado exacto del patrón de feat/ai-model-selector:src/server/ai/extract-afiche.ts resolveModel()
  */
 export function resolveGroqModel(override?: string): string {
@@ -214,7 +214,9 @@ function buildUserPrompt(input: BuscarActividadesInput): string {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function stripJsonFences(raw: string): string {
-  const trimmed = raw.trim();
+  // Retry path: qwen sin response_format vuelca <think>...</think> en content — removerlo antes de parsear.
+  const withoutThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/gi, "");
+  const trimmed = withoutThink.trim();
   if (trimmed.startsWith("```")) {
     const withoutOpen = trimmed.replace(/^```(?:json)?\s*/i, "");
     const withoutClose = withoutOpen.replace(/\s*```\s*$/, "");
@@ -236,8 +238,41 @@ export function isRetryableGroqError(error: unknown): boolean {
   return false;
 }
 
+function getFailedGenerationSnippet(error: unknown): string | null {
+  const nested =
+    (error as { error?: { failed_generation?: unknown } })?.error?.failed_generation ??
+    (error as { failed_generation?: unknown })?.failed_generation;
+  if (typeof nested !== "string" || nested.length === 0) return null;
+  return nested.slice(0, 500);
+}
+
+function isJsonValidationFailure(error: unknown): boolean {
+  if (error instanceof OpenAI.APIError && error.status === 400) {
+    const msg = (error.message ?? "").toLowerCase();
+    const code = String((error as { code?: unknown })?.code ?? (error as { error?: { code?: unknown } })?.error?.code ?? "").toLowerCase();
+    if (msg.includes("failed to validate json") || msg.includes("json_validate_failed") || code.includes("json_validate_failed")) {
+      return true;
+    }
+  }
+  if (error instanceof Error) {
+    const lower = error.message.toLowerCase();
+    if (error.message.includes("400") && (lower.includes("failed to validate json") || lower.includes("json_validate_failed"))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function toFriendlyError(error: unknown): Error {
   if (error instanceof OpenAI.APIError) {
+    const fg = getFailedGenerationSnippet(error);
+    const fgSuffix = fg ? ` failed_generation (primeros 500 chars): ${fg}` : " failed_generation vacía (el modelo no devolvió JSON).";
+    if (error.status === 400) {
+      return new Error(
+        `[groq] Bad request (400). ${error.message}.${fgSuffix} ` +
+          `Tip: qwen/qwen3.6-27b falla con response_format json_object en este prompt (verificado 2026-09-03) — se reintentó sin formato una vez; si persiste, probá model openai/gpt-oss-120b.`,
+      );
+    }
     if (error.status === 429) {
       return new Error(
         `[groq] Rate limit exceeded (429). Groq free tier is 30 RPM / 1K RPD. ` +
@@ -302,23 +337,19 @@ export async function buscarActividadesConGroq(input: BuscarActividadesInput): P
   const userPrompt = buildUserPrompt({ ...input, ubicacion });
 
   let rawContent: string | null | undefined;
-  try {
-    const completion = (await client.chat.completions.create({
+  const requestOnce = async (useJsonMode: boolean) => {
+    return (await client.chat.completions.create({
       model,
       temperature: 0.2,
-      response_format: { type: "json_object" },
+      ...(useJsonMode ? { response_format: { type: "json_object" } as const } : {}),
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
     })) as OpenAI.Chat.Completions.ChatCompletion;
-
-    rawContent = completion.choices[0]?.message?.content;
-    if (!rawContent) {
-      throw new Error("[groq] Empty response content from model (no choices[0].message.content).");
-    }
-
-    const cleaned = stripJsonFences(rawContent);
+  };
+  const parseAndValidate = (raw: string): GroqBusquedaResult => {
+    const cleaned = stripJsonFences(raw);
     let parsed: unknown;
     try {
       parsed = JSON.parse(cleaned);
@@ -359,6 +390,28 @@ export async function buscarActividadesConGroq(input: BuscarActividadesInput): P
       warnings,
       raw: validated,
     };
+  };
+  try {
+    try {
+      const completion = await requestOnce(true);
+      rawContent = completion.choices[0]?.message?.content;
+      if (!rawContent) {
+        throw new Error("[groq] Empty response content from model (no choices[0].message.content).");
+      }
+      return parseAndValidate(rawContent);
+    } catch (firstErr) {
+      // Resiliencia: ante 400 json_validate_failed (qwen + json_object), reintentar UNA vez sin response_format.
+      if (!isJsonValidationFailure(firstErr)) throw firstErr;
+      console.warn(`[groq] json_object rechazado por ${model} (400 json_validate_failed) — reintentando una vez sin response_format`);
+      const retryCompletion = await requestOnce(false);
+      const retryContent = retryCompletion.choices[0]?.message?.content;
+      if (!retryContent) throw firstErr;
+      try {
+        return parseAndValidate(retryContent);
+      } catch {
+        throw firstErr;
+      }
+    }
   } catch (error) {
     throw toFriendlyError(error);
   }
