@@ -15,7 +15,10 @@ export const Route = createFileRoute("/sugerencias")({
         content: "Cuéntenos qué actividad falta o qué error encontró en Actividad Fácil.",
       },
       { property: "og:title", content: "Enviar sugerencia — Actividad Fácil" },
-      { property: "og:description", content: "Sugerencias y reportes de la comunidad de Lo Prado." },
+      {
+        property: "og:description",
+        content: "Sugerencias y reportes de la comunidad de Lo Prado.",
+      },
     ],
   }),
   component: Sugerencias,
@@ -52,7 +55,8 @@ function Sugerencias() {
       setEnviado(true);
       toast.success("¡Gracias! Recibimos tu mensaje.");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "No pudimos enviar tu mensaje. Probá de nuevo.";
+      const msg =
+        err instanceof Error ? err.message : "No pudimos enviar tu mensaje. Probá de nuevo.";
       setErrorMsg(msg);
       toast.error(msg);
     } finally {
@@ -69,8 +73,12 @@ function Sugerencias() {
         <ArrowLeft aria-hidden className="size-6" /> Volver
       </Link>
 
-      <h1 className="mt-6 text-4xl font-extrabold leading-tight text-foreground">Enviar sugerencia</h1>
-      <p className="mt-3 text-xl text-foreground">Escróbanos si falta una actividad o si algo no funciona bien.</p>
+      <h1 className="mt-6 text-4xl font-extrabold leading-tight text-foreground">
+        Enviar sugerencia
+      </h1>
+      <p className="mt-3 text-xl text-foreground">
+        Escróbanos si falta una actividad o si algo no funciona bien.
+      </p>
 
       {enviado ? (
         <p
@@ -97,7 +105,10 @@ function Sugerencias() {
           </select>
 
           <label htmlFor="mensaje" className="text-xl font-bold text-foreground">
-            Su mensaje <span aria-hidden className="text-destructive">*</span>
+            Su mensaje{" "}
+            <span aria-hidden className="text-destructive">
+              *
+            </span>
           </label>
           <textarea
             id="mensaje"
@@ -139,7 +150,11 @@ function Sugerencias() {
           />
 
           {errorMsg && (
-            <p id="form-error" role="alert" className="rounded-xl bg-destructive/10 p-3 text-lg font-bold text-destructive">
+            <p
+              id="form-error"
+              role="alert"
+              className="rounded-xl bg-destructive/10 p-3 text-lg font-bold text-destructive"
+            >
               {errorMsg}
             </p>
           )}
@@ -153,7 +168,9 @@ function Sugerencias() {
             {isSubmitting ? "Enviando…" : "Enviar"}
           </button>
 
-          <p className="text-base text-muted-foreground">Usaremos tu contacto solo para responderte si es necesario.</p>
+          <p className="text-base text-muted-foreground">
+            Usaremos tu contacto solo para responderte si es necesario.
+          </p>
         </form>
       )}
     </AppShell>

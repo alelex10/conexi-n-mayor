@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, Bath, Car, Map, Phone, Bus } from "lucide-react";
 
@@ -87,6 +88,13 @@ function Detalle() {
 
       <p className="mt-2 text-lg font-medium text-muted-foreground">{actividad.categoria}</p>
 
+      {actividad.fuente === "chilecultura" && (
+        <p className="mt-2 inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-sm font-bold text-[#EF6C00]">
+          Fuente: ChileCultura
+          {actividad.commune ? ` · Aprox. en ${actividad.commune}` : ""}
+        </p>
+      )}
+
       <p
         className={`mt-4 inline-block rounded-lg px-4 py-2 text-xl font-bold ${
           actividad.gratuito ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
@@ -106,8 +114,31 @@ function Detalle() {
         <p className="mt-1">{actividad.direccion}</p>
         <p className="mt-3">
           <strong>Distancia:</strong> a {formatearDistancia(actividad.distanciaMetros)} de su casa
+          {actividad.fuente === "chilecultura" && (
+            <span className="ml-2 text-base font-semibold text-[#8D6E63]">— Distancia estimada — confirmar dirección</span>
+          )}
         </p>
+        {actividad.fuente === "chilecultura" && actividad.commune && (
+          <p className="mt-1 text-base font-medium text-muted-foreground">Aprox. en {actividad.commune}</p>
+        )}
         <p className="mt-3">{actividad.descripcion}</p>
+        {actividad.fuente === "chilecultura" && actividad.url && (
+          <p className="mt-4">
+            <a
+              href={actividad.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border-2 border-[#F57C00] bg-[#FFF3E0] px-4 py-2 text-base font-bold text-[#EF6C00] underline-offset-4 hover:underline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#F57C00]"
+            >
+              Fuente: ChileCultura — ver original
+            </a>
+          </p>
+        )}
+        {actividad.fuente === "chilecultura" && typeof actividad.latitud === "number" && typeof actividad.longitud === "number" && (
+          <p className="mt-2 text-sm font-medium text-muted-foreground">
+            Coordenadas: {actividad.latitud.toFixed(4)}, {actividad.longitud.toFixed(4)}
+          </p>
+        )}
       </div>
 
       <h2 className="mt-8 text-2xl font-bold text-foreground">Servicios del lugar</h2>

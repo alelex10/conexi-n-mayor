@@ -62,9 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <AppHeader />
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">
-        {children}
-      </main>
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">{children}</main>
       <AppFooter />
     </div>
   );
