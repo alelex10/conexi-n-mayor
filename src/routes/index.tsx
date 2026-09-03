@@ -46,9 +46,12 @@ export const Route = createFileRoute("/")({
   }),
   // Loader runs on the server (SSR) via Nitro/Cloudflare — uses Supabase via server function.
   // Falls back to mock data if SB_* env is not yet configured.
+  // NOTA: externos desactivados en home — ChileCultura trae región equivocada
+  // (Magallanes en vez de RM) y distancia sintética que confunde.
+  // Siguen disponibles aislados en /comparar (tab ChileCultura).
   loader: async () => {
     try {
-      const actividades = await listarActividades({ data: { radioMetros: 2500, incluirExternos: true } });
+      const actividades = await listarActividades({ data: { radioMetros: 2500, incluirExternos: false } });
       return { actividades, radioInicial: 2500 as number };
     } catch (e) {
       console.error("[index loader] failed to load actividades", e);
@@ -85,7 +88,7 @@ function CiudadVivaMayor() {
     setCargando(true);
     setErrorCarga(null);
     try {
-      const filtradas = await listarActividades({ data: { radioMetros: valor, incluirExternos: true } });
+      const filtradas = await listarActividades({ data: { radioMetros: valor, incluirExternos: false } });
       setActividades(filtradas);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No pudimos cargar las actividades.";
