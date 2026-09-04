@@ -38,6 +38,20 @@ export const listarModelosGroqFn = createServerFn({ method: "GET" }).handler(asy
   }
 });
 
+/**
+ * Público — modelos disponibles del proveedor Lovable AI (lista estática curada).
+ */
+export const listarModelosLovableFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { LOVABLE_MODELS, DEFAULT_LOVABLE_MODEL } = await import("@/server/ai/lovable-actividades");
+  return {
+    models: [...LOVABLE_MODELS],
+    source: "static" as const,
+    fetchedAt: new Date().toISOString(),
+    defaultModel: DEFAULT_LOVABLE_MODEL,
+    hasLovableKey: Boolean(process.env["LOVABLE_API_KEY"]),
+  };
+});
+
 const buscarInputSchema = z.object({
   ubicacion: z.string().trim().min(3, "ubicacion debe tener al menos 3 caracteres").max(200),
   radioMetros: z.number().int().positive().optional(),
@@ -47,27 +61,43 @@ const buscarInputSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "fechaDesde debe ser YYYY-MM-DD")
     .optional(),
   model: z.string().trim().min(1).optional(),
+  proveedor: z.enum(["groq", "lovable"]).optional(),
 });
 
 /**
- * Busca actividades por ubicación usando Groq (simula web search vía prompt) + HITL gate.
- * - model es opcional desde el cliente; validado server-side vía isValidGroqModel (flexible)
+ * Busca actividades por ubicación usando Groq o Lovable AI (según `proveedor`) + HITL gate.
+ * - model es opcional desde el cliente; validado server-side
  * - confidence < 0.85 persiste best-effort en busquedas_groq_pendientes (feature-flag: si tabla no existe, warn y no rompe)
  */
 export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => buscarInputSchema.parse(data))
   .handler(async ({ data }) => {
-    const { buscarActividadesConGroq } = await import("@/server/ai/groq-actividades");
+    const proveedor = data.proveedor ?? "groq";
     const { DEFAULT_GROQ_MODEL } = await import("@/server/ai/models");
 
-    const groqInput: Parameters<typeof buscarActividadesConGroq>[0] = {
+    const groqInput: {
+      ubicacion: string;
+      radioMetros?: number;
+      categoria?: string;
+      fechaDesde?: string;
+      model?: string;
+    } = {
       ubicacion: data.ubicacion,
     };
     if (data.radioMetros !== undefined) groqInput.radioMetros = data.radioMetros;
     if (data.categoria !== undefined) groqInput.categoria = data.categoria;
     if (data.fechaDesde !== undefined) groqInput.fechaDesde = data.fechaDesde;
     if (data.model !== undefined) groqInput.model = data.model;
-    const result = await buscarActividadesConGroq(groqInput);
+
+    let result;
+    if (proveedor === "lovable") {
+      const { buscarActividadesConLovable } = await import("@/server/ai/lovable-actividades");
+      result = await buscarActividadesConLovable(groqInput);
+    } else {
+      const { buscarActividadesConGroq } = await import("@/server/ai/groq-actividades");
+      result = await buscarActividadesConGroq(groqInput);
+    }
+
 
     const confidence = result.confidence;
     const needsReview = confidence < HITL_THRESHOLD;
