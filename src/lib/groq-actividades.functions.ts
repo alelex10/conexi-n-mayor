@@ -8,7 +8,48 @@ import { z } from "zod";
  * del PR selector (ai-model-selector).
  */
 
-const HITL_THRESHOLD = 0.85;
+export const HITL_THRESHOLD = 0.85;
+
+/**
+ * Piso para verificados parciales: items con cita exacta pero con campos
+ * faltantes (fecha/hora/lugar/direccion null) llegan con confidence 0.70-0.84
+ * y DEBEN mostrarse en home con etiquetas "no encontrado" en vez de ocultarse.
+ */
+export const PARTIAL_VERIFIED_FLOOR = 0.7;
+
+type GateItem = {
+  confidence: number;
+  fuente_url?: string | null | undefined;
+  warnings?: string[] | undefined;
+};
+
+/**
+ * HITL gate (pure, exported for tests): the server already dropped every
+ * item whose name is not verbatim in live web evidence (live-only, zero
+ * invención). Items reach the client when confidence >= PARTIAL_VERIFIED_FLOOR
+ * (0.70) AND the fuente is honest: either an http fuente_url (exact evidence
+ * URL, verified server-side) or null (citation-missing verbatim match, shown
+ * as "Fuente no informada"). Malformed non-http fuente strings are held back.
+ * Full-verified (>= 0.85) and partial-verified (0.70-0.84, missing
+ * fecha/hora/direccion/lugar or missing citation) are both shown — partials
+ * render "no encontrado" placeholders in the UI.
+ * Items below 0.70, or with a dishonest fuente, are held back for human
+ * review and persisted best-effort in busquedas_groq_pendientes.
+ */
+export function filterVerifiedForClient<T extends GateItem>(actividades: T[]): {
+  verified: T[];
+  heldback: T[];
+} {
+  const isHttpFuente = (url: unknown): boolean =>
+    typeof url === "string" && /^https?:\/\//i.test(url.trim());
+  const verified = actividades.filter((a) => {
+    if (typeof a.confidence !== "number" || a.confidence < PARTIAL_VERIFIED_FLOOR) return false;
+    if (a.fuente_url == null) return true; // cita opcional: nombre verbatim ya verificado en servidor
+    return isHttpFuente(a.fuente_url);
+  });
+  const heldback = actividades.filter((a) => !verified.includes(a));
+  return { verified, heldback };
+}
 
 /**
  * Público — sin auth para MVP. Retorna modelos Groq disponibles.
@@ -50,9 +91,19 @@ const buscarInputSchema = z.object({
 });
 
 /**
- * Busca actividades por ubicación usando Groq (simula web search vía prompt) + HITL gate.
+ * Busca actividades VERIFICADAS por ubicación usando Groq con grounding
+ * live-only + HITL gate.
  * - model es opcional desde el cliente; validado server-side vía isValidGroqModel (flexible)
- * - confidence < 0.85 persiste best-effort en busquedas_groq_pendientes (feature-flag: si tabla no existe, warn y no rompe)
+ * - El servidor (src/server/ai/groq-actividades.ts) ya descarta ítems cuyo
+ *   nombre no está verbatim en la evidencia web en vivo o cuya URL —cuando
+ *   está presente— no es exacta, y recalcula confidence desde evidencia
+ *   (cita exacta +0.15; sin cita pero verbatim + ubicación 0.75-0.80 con
+ *   warning; faltantes penalizan -0.05, piso 0.70). Aquí se aplica el gate
+ *   final: se retornan ítems con confidence >= 0.70 Y fuente honesta
+ *   (fuente_url http exacta o null = "Fuente no informada"), incluyendo
+ *   parciales con "no encontrado".
+ *   El resto se persiste best-effort en busquedas_groq_pendientes y NO se
+ *   retorna al cliente.
  */
 export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => buscarInputSchema.parse(data))
@@ -69,10 +120,24 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
     if (data.model !== undefined) groqInput.model = data.model;
     const result = await buscarActividadesConGroq(groqInput);
 
-    const confidence = result.confidence;
-    const needsReview = confidence < HITL_THRESHOLD;
+    // Final HITL gate: only verified items reach the client (pure helper above).
+    const { verified, heldback } = filterVerifiedForClient(result.actividades);
+
+    const confidence =
+      verified.length > 0
+        ? Number(
+            (verified.reduce((acc, a) => acc + a.confidence, 0) / verified.length).toFixed(2),
+          )
+        : 0;
+    const needsReview = heldback.length > 0 || verified.length === 0;
     const status = needsReview ? ("needs_review" as const) : ("ok" as const);
     const usedModel = data.model?.trim() || result.usedModel || process.env["GROQ_MODEL"] || DEFAULT_GROQ_MODEL;
+    const warnings = [...result.warnings];
+    if (heldback.length > 0) {
+      warnings.push(
+        `Se retuvieron ${heldback.length} resultados sin verificación suficiente para revisión humana; solo se muestran actividades verificadas.`,
+      );
+    }
 
     if (needsReview) {
       try {
@@ -81,7 +146,12 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
         const { error } = await admin.from("busquedas_groq_pendientes").insert({
           ubicacion: data.ubicacion,
           radio_metros: data.radioMetros ?? null,
-          raw_json: result.raw as unknown as Record<string, unknown>,
+          raw_json: {
+            raw: result.raw as unknown as Record<string, unknown>,
+            heldback: heldback as unknown as Record<string, unknown>,
+            evidenceMode: result.evidenceMode,
+            droppedCount: result.droppedCount,
+          } as unknown as Record<string, unknown>,
           confidence,
           provider: `groq:${usedModel}`,
           status: "pendiente",
@@ -111,13 +181,14 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
 
     return {
       status,
-      actividades: result.actividades,
-      total: result.total,
+      actividades: verified,
+      total: verified.length,
       confidence,
       usedModel,
       ubicacion: result.ubicacion,
-      warnings: result.warnings,
+      warnings,
       needsReview,
+      evidenceMode: result.evidenceMode,
       raw: result.raw,
     };
   });

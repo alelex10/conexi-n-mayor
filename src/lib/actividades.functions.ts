@@ -94,12 +94,11 @@ export const listarActividades = createServerFn({ method: "GET" })
       }
     }
 
-    // 2) Merge ChileCultura external when enabled
+    // 2) Merge ChileCultura external (always on)
     if (!data.incluirExternos) return dedupeSortSlice(base);
 
     try {
-      const { isChileCulturaEnabled, fetchListaCached } = await import("./chilecultura");
-      if (!isChileCulturaEnabled()) return dedupeSortSlice(base);
+      const { fetchListaCached } = await import("./chilecultura");
       const externas = await fetchListaCached();
       // fetchListaCached already maps to Actividad with fuente=chilecultura and synthetic distanciaMetros=1500
       // Graceful fallback: if fetch returns empty, just return base
@@ -162,9 +161,7 @@ export const obtenerActividad = createServerFn({ method: "GET" })
     if (!data.id.startsWith("ccult-")) return null;
 
     try {
-      const { isChileCulturaEnabled, fetchDetalleCached, fetchLista, mapToActividad, getCached } = await import("./chilecultura");
-
-      if (!isChileCulturaEnabled()) return null;
+      const { fetchDetalleCached, fetchLista, mapToActividad, getCached } = await import("./chilecultura");
 
       // Try to find in cached lista first (fast path — avoids extra fetch)
       const cachedLista = getCached<Actividad[]>("cc:list:13");

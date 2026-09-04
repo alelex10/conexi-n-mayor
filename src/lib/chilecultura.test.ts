@@ -6,7 +6,7 @@ import {
   stripHtml, extractHora, mapDiscipline, mapToActividad, parseDetalleHtml,
   fetchLista, fetchDetalle, fetchListaCached, fetchDetalleCached,
   clearCache, isCacheValid, getCached, setCached,
-  LIST_CACHE_KEY, LIST_TTL, DETAIL_TTL, CHILECULTURA_BASE, detailCacheKey, isChileCulturaEnabled,
+  LIST_CACHE_KEY, LIST_TTL, DETAIL_TTL, CHILECULTURA_BASE, detailCacheKey,
   type RawEvent,
 } from "./chilecultura";
 
@@ -101,7 +101,7 @@ describe("parseDetalleHtml", () => {
   });
 });
 
-describe("cache flag", () => {
+describe("cache", () => {
   beforeEach(() => clearCache());
   afterEach(() => clearCache());
   it("isCacheValid", async () => {
@@ -111,17 +111,10 @@ describe("cache flag", () => {
     _setCacheEntry("k2", Date.now() - LIST_TTL - 1000, { foo: 2 });
     expect(isCacheValid("k2", LIST_TTL)).toBe(false);
   });
-  it("flag default true and false disables", () => {
-    delete process.env["ENABLE_CHILECULTURA"];
-    expect(isChileCulturaEnabled()).toBe(true);
-    process.env["ENABLE_CHILECULTURA"] = "false";
-    expect(isChileCulturaEnabled()).toBe(false);
-    delete process.env["ENABLE_CHILECULTURA"];
-  });
 });
 
 describe("fetchLista", () => {
-  beforeEach(() => { clearCache(); vi.restoreAllMocks(); delete process.env["ENABLE_CHILECULTURA"]; });
+  beforeEach(() => { clearCache(); vi.restoreAllMocks(); });
   afterEach(() => { vi.restoreAllMocks(); clearCache(); });
   it("fetches apex with User-Agent, 8s abort, 400ms gap ≤100", async () => {
     const r1 = Array.from({ length: 50 }, (_, i) => makeRaw({ id: 1000 + i }));
@@ -140,12 +133,8 @@ describe("fetchLista", () => {
     expect((spy.mock.calls[0]![1] as RequestInit).signal).toBeInstanceOf(AbortSignal);
     expect(res.length).toBe(60);
   });
-  it("flag off returns empty and throws on non-ok", async () => {
-    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, status: 500 } as Response);
-    process.env["ENABLE_CHILECULTURA"] = "false";
-    expect(await fetchLista()).toEqual([]);
-    expect(spy).not.toHaveBeenCalled();
-    delete process.env["ENABLE_CHILECULTURA"];
+  it("throws on non-ok", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, status: 500 } as Response);
     await expect(fetchLista({ pages: 1 })).rejects.toThrow();
   });
   it("fetchListaCached <50ms from cache and fallback empty", async () => {
@@ -165,7 +154,7 @@ describe("fetchLista", () => {
 });
 
 describe("fetchDetalle", () => {
-  beforeEach(() => { clearCache(); vi.restoreAllMocks(); delete process.env["ENABLE_CHILECULTURA"]; });
+  beforeEach(() => { clearCache(); vi.restoreAllMocks(); });
   afterEach(() => { vi.restoreAllMocks(); clearCache(); });
   it("fetches HTML and parses", async () => {
     const html = `<div id="mapDesktop" data-lat="-33.35" data-lon="-70.60"></div><div class="location">Calle Test 123</div><li class="payment">Gratis</li>`;
@@ -176,13 +165,10 @@ describe("fetchDetalle", () => {
     expect(res!.direccion).toContain("Calle");
     expect(res!.precio).toBe("Gratis");
   });
-  it("null for bad id and flag off", async () => {
+  it("null for bad id", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
     expect(await fetchDetalle("bad")).toBeNull();
-    process.env["ENABLE_CHILECULTURA"] = "false";
-    expect(await fetchDetalle("37496")).toBeNull();
     expect(spy).not.toHaveBeenCalled();
-    delete process.env["ENABLE_CHILECULTURA"];
   });
   it("caches 24h and stale fallback", async () => {
     const html = `<div id="mapDesktop" data-lat="-33.0" data-lon="-70.0"></div>`;

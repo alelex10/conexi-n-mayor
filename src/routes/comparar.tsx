@@ -113,7 +113,7 @@ function ChileCulturaTab() {
       <div className="mt-3 rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-sm">
         <p className="text-xl font-bold text-foreground">ChileCultura no devolvió actividades.</p>
         <p className="mt-2 text-lg text-muted-foreground">
-          Puede estar deshabilitado (ENABLE_CHILECULTURA=false) o la API no respondió. Reintentá más tarde.
+          La API no respondió. Reintentá más tarde.
         </p>
       </div>
     );

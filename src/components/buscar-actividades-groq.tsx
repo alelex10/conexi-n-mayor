@@ -126,6 +126,7 @@ type BuscarResult = {
   ubicacion: string;
   warnings: string[];
   needsReview: boolean;
+  evidenceMode?: "live";
   raw: unknown;
 };
 
@@ -318,6 +319,14 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                 ? "No encontramos actividades. Pruebe con otra comuna cercana."
                 : `${result.total} ${result.total === 1 ? "actividad encontrada" : "actividades encontradas"}`}
             </p>
+            {result.evidenceMode === "live" && result.total > 0 && (
+              <p className="text-center">
+                <span className="inline-flex items-center gap-1 rounded-lg bg-[#1B7A3D]/10 px-3 py-1 text-base font-bold text-[#1B7A3D]">
+                  <CheckCircle2 className="size-4" aria-hidden />
+                  Verificado en la web
+                </span>
+              </p>
+            )}
             {result.actividades.length > 0 && (
               <ul className="space-y-4" aria-label="Actividades encontradas">
                 {result.actividades.map((a, idx) => {
@@ -343,24 +352,48 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                             >
                               {a.gratuito ? "Gratuito" : a.precio_texto || "De pago"}
                             </span>
+                            {a.fuente_url ? (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-[#1B7A3D]/10 px-3 py-1 text-base font-bold text-[#1B7A3D]">
+                                <CheckCircle2 className="size-4" aria-hidden />
+                                Verificado en la web
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-3 py-1 text-base font-bold text-muted-foreground">
+                                Fuente no informada
+                              </span>
+                            )}
                           </div>
                           <h3 className="text-xl font-extrabold leading-tight text-[#5D4037]">
                             {a.nombre}
                           </h3>
-                          {(fechaTexto || a.hora) && (
-                            <p className="text-lg font-medium leading-snug text-[#424242]">
-                              {fechaTexto}
-                              {fechaTexto && a.hora
-                                ? ` · ${a.hora} horas`
-                                : a.hora
-                                  ? `${a.hora} horas`
-                                  : ""}
-                            </p>
-                          )}
-                          {destino && (
+                          <p className="text-lg font-medium leading-snug text-[#424242]">
+                            {fechaTexto ? (
+                              <span>{fechaTexto}</span>
+                            ) : (
+                              <span className="italic text-[#9E9E9E]">
+                                Fecha no encontrada
+                              </span>
+                            )}
+                            {" · "}
+                            {a.hora ? (
+                              <span>{a.hora} horas</span>
+                            ) : (
+                              <span className="italic text-[#9E9E9E]">
+                                Horario no encontrado
+                              </span>
+                            )}
+                          </p>
+                          {destino ? (
                             <p className="flex items-start gap-2 text-lg font-medium leading-snug text-[#424242]">
                               <MapPin className="mt-1 size-5 shrink-0 text-[#616161]" aria-hidden />
                               <span>{destino}</span>
+                            </p>
+                          ) : (
+                            <p className="flex items-start gap-2 text-lg font-medium leading-snug">
+                              <MapPin className="mt-1 size-5 shrink-0 text-[#616161]" aria-hidden />
+                              <span className="italic text-[#9E9E9E]">
+                                Dirección no encontrada
+                              </span>
                             </p>
                           )}
                           {mapsUrl && (
@@ -372,6 +405,20 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                             >
                               Ver cómo llegar
                             </a>
+                          )}
+                          {a.fuente_url ? (
+                            <a
+                              href={a.fuente_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex min-h-12 w-full items-center justify-center rounded-xl border-2 border-[#1E6CB4] px-4 py-2 text-lg font-bold text-[#1E6CB4] transition-colors hover:bg-[#1E6CB4]/10 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1E6CB4]"
+                            >
+                              Ver fuente exacta
+                            </a>
+                          ) : (
+                            <p className="text-center text-base font-medium text-muted-foreground">
+                              Fuente no informada
+                            </p>
                           )}
                         </div>
                       </article>

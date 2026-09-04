@@ -3,7 +3,7 @@
 import type { Actividad } from "@/data/actividades";
 
 export const CHILECULTURA_BASE = "https://chilecultura.gob.cl";
-export const RM_REGION_ID = 13; // spec 13==RM, exploration suggested 1 — confirm before ship
+export const RM_REGION_ID = 13; // 13 = RM
 export const CHILECULTURA_USER_AGENT = "CiudadVivaMayor/1.0";
 export const LIST_TTL = 6 * 3600 * 1000;
 export const DETAIL_TTL = 24 * 3600 * 1000;
@@ -22,11 +22,6 @@ declare global { var __ccCache: Map<string, CacheEntry<unknown>> | undefined; }
 function getCache(): Map<string, CacheEntry<unknown>> {
   if (!globalThis.__ccCache) globalThis.__ccCache = new Map();
   return globalThis.__ccCache;
-}
-
-export function isChileCulturaEnabled(): boolean {
-  const v = typeof process !== "undefined" ? process.env["ENABLE_CHILECULTURA"] : undefined;
-  return v !== "false";
 }
 
 export function stripHtml(html: string): string {
@@ -98,7 +93,6 @@ function assertApexHost(url: string): void {
 function sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
 
 export async function fetchLista(opts?: { region?: number; pageSize?: number; pages?: number }): Promise<RawEvent[]> {
-  if (!isChileCulturaEnabled()) return [];
   const region = opts?.region ?? RM_REGION_ID, pageSize = opts?.pageSize ?? 50, pages = opts?.pages ?? 2;
   const results: RawEvent[] = [];
   for (let page = 1; page <= pages; page++) {
@@ -120,7 +114,6 @@ export async function fetchLista(opts?: { region?: number; pageSize?: number; pa
 }
 
 export async function fetchListaCached(): Promise<Actividad[]> {
-  if (!isChileCulturaEnabled()) return [];
   if (isCacheValid(LIST_CACHE_KEY, LIST_TTL)) {
     const c = getCached<Actividad[]>(LIST_CACHE_KEY);
     if (c) return c;
@@ -137,7 +130,6 @@ export async function fetchListaCached(): Promise<Actividad[]> {
 }
 
 export async function fetchDetalle(id: string): Promise<DetailParsed | null> {
-  if (!isChileCulturaEnabled()) return null;
   const rawId = id.replace(/^ccult-/, "");
   if (!/^\d+$/.test(rawId)) return null;
   const url = `${CHILECULTURA_BASE}/events/${rawId}/`;
@@ -194,7 +186,6 @@ export function parseDetalleHtml(html: string): DetailParsed {
 }
 
 export async function fetchDetalleCached(id: string): Promise<DetailParsed | null> {
-  if (!isChileCulturaEnabled()) return null;
   const key = detailCacheKey(id.replace(/^ccult-/, ""));
   if (isCacheValid(key, DETAIL_TTL)) {
     const c = getCached<DetailParsed>(key);
