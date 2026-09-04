@@ -250,4 +250,43 @@ describe("buscarActividadesConGemini grounding (mocked client)", () => {
     expect(result.sources?.length).toBe(2);
     expect(result.confidence).toBe(0.9);
   });
+
+  it("keeps fuente_url null in JSON and takes long grounding redirect URLs from chunks", async () => {
+    // Regression: with grounding the model pasted ~300-char vertexaisearch
+    // redirect URLs into every fuente_url, blowing the output budget and
+    // truncating the JSON mid-URL (Zod/parse failure). The prompt now forces
+    // fuente_url null; real references come from groundingChunks → sources.
+    const longUrlA = `https://vertexaisearch.cloud.google.com/grounding-api-redirect/${"A".repeat(250)}`;
+    const longUrlB = `https://vertexaisearch.cloud.google.com/grounding-api-redirect/${"B".repeat(250)}`;
+    expect(longUrlA.length).toBeGreaterThan(300);
+    expect(longUrlB.length).toBeGreaterThan(300);
+    generateContentMock.mockResolvedValueOnce({
+      text: validActivityJson(),
+      candidates: [
+        {
+          groundingMetadata: {
+            groundingChunks: [
+              { web: { uri: longUrlA, title: "Grounded A" } },
+              { web: { uri: longUrlB, title: "Grounded B" } },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await buscarActividadesConGemini({ ubicacion: "Lo Prado, Santiago" });
+
+    // Parse survived (no truncation failure) with null per-activity URLs.
+    expect(result.total).toBe(1);
+    expect(result.actividades[0]?.fuente_url).toBeNull();
+    // Long grounding URLs surface via sources, not via the JSON payload.
+    expect(result.sources).toEqual([
+      { title: "Grounded A", url: longUrlA },
+      { title: "Grounded B", url: longUrlB },
+    ]);
+    // Output budget raised so grounded answers fit.
+    expect(generateContentMock.mock.calls[0]?.[0]?.config?.maxOutputTokens).toBe(8192);
+    // Gemini-only prompt nudge; Groq path stays untouched.
+    expect(String(generateContentMock.mock.calls[0]?.[0]?.contents)).toMatch(/fuente_url to null/i);
+  });
 });

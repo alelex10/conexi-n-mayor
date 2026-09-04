@@ -214,7 +214,7 @@ export function buildGroqSystemPrompt(ubicacion: string): string {
   ].join("\n");
 }
 
-export function buildUserPrompt(input: BuscarActividadesInput): string {
+export function buildUserPrompt(input: BuscarActividadesInput, opts?: { omitSourceUrls?: boolean }): string {
   const parts: string[] = [];
   parts.push(`Ubicación: "${input.ubicacion}"`);
   if (typeof input.latitud === "number" && typeof input.longitud === "number") {
@@ -232,6 +232,11 @@ export function buildUserPrompt(input: BuscarActividadesInput): string {
   parts.push(
     "Instrucciones: Buscá actividades REALES y actuales cerca de esa ubicación (actuá como si hubieras buscado en la web con tu conocimiento). Devolvé SOLO JSON válido según el schema del system prompt. No uses markdown. Usá null donde no tengas dato. Incluí fuente_url cuando exista o sea inferible. El JSON debe ser válido.",
   );
+  if (opts?.omitSourceUrls) {
+    parts.push(
+      "System provides sources separately via grounding: always set fuente_url to null for every activity and never emit URLs inside the JSON.",
+    );
+  }
   return parts.join("\n");
 }
 

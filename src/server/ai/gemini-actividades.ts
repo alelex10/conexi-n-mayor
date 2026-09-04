@@ -250,11 +250,7 @@ export async function buscarActividadesConGemini(
       "- Do NOT answer from memory. Every activity MUST come from a page retrieved in this request.",
       "- If the searches return nothing usable, return {\"actividades\": []} with a warnings entry instead of inventing activities.",
     ].join("\n");
-  const userPrompt =
-    buildUserPrompt({ ...input, ubicacion }) +
-    "\nGrounding is enabled for this request: search the web first, then answer only with what you retrieved.";
-
-  const userPromptBase = buildUserPrompt({ ...input, ubicacion });
+  const userPromptBase = buildUserPrompt({ ...input, ubicacion }, { omitSourceUrls: true });
   const GROUNDING_SUFFIX =
     "\nGrounding is enabled for this request: search the web first, then answer only with what you retrieved.";
   // Second-attempt nudge when the first attempt skipped the search tool.
@@ -268,6 +264,7 @@ export async function buscarActividadesConGemini(
     config: {
       systemInstruction: systemPrompt,
       temperature: 0.2,
+      maxOutputTokens: 8192,
       // Google Search grounding is ALWAYS on (never memory-only answers).
       // NOTE: no responseMimeType here — it is incompatible with the search
       // tool on gemini-2.5-flash via generateContent, so JSON is requested
