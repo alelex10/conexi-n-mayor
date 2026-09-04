@@ -52,7 +52,7 @@ export const listarModelosLovableFn = createServerFn({ method: "GET" }).handler(
   };
 });
 
-const buscarInputSchema = z.object({
+export const buscarInputSchema = z.object({
   ubicacion: z.string().trim().min(3, "ubicacion debe tener al menos 3 caracteres").max(200),
   radioMetros: z.number().int().positive().optional(),
   categoria: z.string().trim().min(1).max(50).optional(),
