@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import type { AIProviderName } from "@/server/ai/providers";
+
 /**
  * Capa RPC client-importable para Groq búsqueda actividades por ubicación.
  * NO importar src/server/ai/* estáticamente — Vite bloquea **\/server/** en client bundles.
@@ -52,6 +54,20 @@ export const listarModelosLovableFn = createServerFn({ method: "GET" }).handler(
   };
 });
 
+/**
+ * Público — modelos disponibles del proveedor Gemini (lista estática curada).
+ */
+export const listarModelosGeminiFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { GEMINI_MODELS, DEFAULT_GEMINI_MODEL } = await import("@/server/ai/gemini-actividades");
+  return {
+    models: [...GEMINI_MODELS],
+    source: "static" as const,
+    fetchedAt: new Date().toISOString(),
+    defaultModel: DEFAULT_GEMINI_MODEL,
+    hasGeminiKey: Boolean(process.env["GEMINI_API_KEY"]),
+  };
+});
+
 export const buscarInputSchema = z.object({
   ubicacion: z.string().trim().min(3, "ubicacion debe tener al menos 3 caracteres").max(200),
   radioMetros: z.number().int().positive().optional(),
@@ -61,21 +77,21 @@ export const buscarInputSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "fechaDesde debe ser YYYY-MM-DD")
     .optional(),
   model: z.string().trim().min(1).optional(),
-  proveedor: z.enum(["groq", "lovable"]).optional(),
+  proveedor: z.enum(["groq", "lovable", "gemini"]).optional(),
   latitud: z.number().min(-90).max(90).optional(),
   longitud: z.number().min(-180).max(180).optional(),
   locationLabel: z.string().trim().max(200).optional(),
 });
 
 /**
- * Busca actividades por ubicación usando Groq o Lovable AI (según `proveedor`) + HITL gate.
+ * Busca actividades por ubicación usando Groq, Lovable AI o Gemini (según `proveedor`) + HITL gate.
  * - model es opcional desde el cliente; validado server-side
  * - confidence < 0.85 persiste best-effort en busquedas_groq_pendientes (feature-flag: si tabla no existe, warn y no rompe)
  */
 export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => buscarInputSchema.parse(data))
   .handler(async ({ data }) => {
-    const proveedor = data.proveedor ?? "groq";
+    const proveedor: AIProviderName = data.proveedor ?? "groq";
     const { DEFAULT_GROQ_MODEL } = await import("@/server/ai/models");
 
     const groqInput: {
@@ -99,9 +115,16 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
     if (data.locationLabel !== undefined) groqInput.locationLabel = data.locationLabel;
 
     let result;
+    let defaultModel = DEFAULT_GROQ_MODEL;
     if (proveedor === "lovable") {
       const { buscarActividadesConLovable } = await import("@/server/ai/lovable-actividades");
       result = await buscarActividadesConLovable(groqInput);
+    } else if (proveedor === "gemini") {
+      const { buscarActividadesConGemini, DEFAULT_GEMINI_MODEL } = await import(
+        "@/server/ai/gemini-actividades"
+      );
+      result = await buscarActividadesConGemini(groqInput);
+      defaultModel = DEFAULT_GEMINI_MODEL;
     } else {
       const { buscarActividadesConGroq } = await import("@/server/ai/groq-actividades");
       result = await buscarActividadesConGroq(groqInput);
@@ -111,8 +134,13 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
     const confidence = result.confidence;
     const needsReview = confidence < HITL_THRESHOLD;
     const status = needsReview ? ("needs_review" as const) : ("ok" as const);
-    const usedModel =
-      result.usedModel || data.model?.trim() || process.env["GROQ_MODEL"] || DEFAULT_GROQ_MODEL;
+    const envFallback =
+      proveedor === "gemini"
+        ? process.env["GEMINI_MODEL"]
+        : proveedor === "lovable"
+          ? undefined
+          : process.env["GROQ_MODEL"];
+    const usedModel = result.usedModel || data.model?.trim() || envFallback || defaultModel;
 
 
     if (needsReview) {
