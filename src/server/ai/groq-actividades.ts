@@ -199,7 +199,7 @@ export function buildGroqSystemPrompt(ubicacion: string): string {
   ].join("\n");
 }
 
-function buildUserPrompt(input: BuscarActividadesInput): string {
+export function buildUserPrompt(input: BuscarActividadesInput): string {
   const parts: string[] = [];
   parts.push(`Ubicación: "${input.ubicacion}"`);
   if (input.radioMetros) parts.push(`Radio aproximado: ${input.radioMetros} metros`);
@@ -213,7 +213,7 @@ function buildUserPrompt(input: BuscarActividadesInput): string {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function stripJsonFences(raw: string): string {
+export function stripJsonFences(raw: string): string {
   // Retry path: qwen sin response_format vuelca <think>...</think> en content — removerlo antes de parsear.
   const withoutThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/gi, "");
   const trimmed = withoutThink.trim();
