@@ -16,6 +16,7 @@ import {
   listarModelosGroqFn,
   listarModelosLovableFn,
 } from "@/lib/groq-actividades.functions";
+import { getLocationStatusMessage, useDeviceLocation } from "@/hooks/use-device-location";
 
 import { formatearFecha } from "@/data/actividades";
 import { Badge } from "@/components/ui/badge";
@@ -156,6 +157,17 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const startRef = useRef<number>(0);
 
+  const device = useDeviceLocation();
+  const locationMessage = getLocationStatusMessage(device.status, device.locationLabel);
+  const devicePayload =
+    device.status === "ok" && device.coords
+      ? {
+          latitud: device.coords.latitud,
+          longitud: device.coords.longitud,
+          ...(device.locationLabel ? { locationLabel: device.locationLabel } : {}),
+        }
+      : {};
+
   useEffect(() => {
     if (isClean) {
       setLoadingModelos(false);
@@ -222,7 +234,12 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
     try {
       if (isClean) {
         const res = await buscarActividadesPorUbicacionFn({
-          data: { ubicacion: ubicacion.trim(), radioMetros: 2500, model: DEFAULT_MODEL },
+          data: {
+            ubicacion: ubicacion.trim(),
+            radioMetros: 2500,
+            model: DEFAULT_MODEL,
+            ...devicePayload,
+          },
         });
         setResult(res as BuscarResult);
         setElapsedMs(Date.now() - startRef.current);
@@ -235,10 +252,14 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
         fechaDesde?: string;
         model?: string;
         proveedor?: Proveedor;
+        latitud?: number;
+        longitud?: number;
+        locationLabel?: string;
       } = {
         ubicacion: ubicacion.trim(),
         model: modeloActual,
         proveedor,
+        ...devicePayload,
       };
       if (radioMetros.trim()) {
         const n = Number(radioMetros);
@@ -303,6 +324,22 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               className="min-h-14 bg-white text-lg"
             />
             <p className="text-lg text-muted-foreground">Escriba su comuna o barrio.</p>
+            <div className="space-y-2 rounded-xl border bg-white p-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={device.retry}
+                className="min-h-14 w-full rounded-xl px-6 text-xl font-bold"
+              >
+                <MapPin className="size-6" aria-hidden />
+                Usar mi ubicación
+              </Button>
+              {locationMessage && (
+                <p role="status" className="text-lg font-medium text-muted-foreground">
+                  {locationMessage}
+                </p>
+              )}
+            </div>
           </div>
           <Button
             type="button"
@@ -542,6 +579,22 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               Podés usar barrio, comuna o dirección (ej. &quot;Providencia, Santiago&quot;,
               &quot;San Pablo 5850, Lo Prado&quot;).
             </p>
+            <div className="space-y-2 rounded-xl border bg-white p-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={device.retry}
+                className="min-h-14 w-full rounded-xl px-6 text-base font-bold"
+              >
+                <MapPin className="size-5" aria-hidden />
+                Usar mi ubicación
+              </Button>
+              {locationMessage && (
+                <p role="status" className="text-base font-medium text-muted-foreground">
+                  {locationMessage}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
