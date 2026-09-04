@@ -28,6 +28,7 @@ import {
   type Actividad,
 } from "@/data/actividades";
 import { AppShell } from "@/components/AppShell";
+import { BuscarActividadesGroq } from "@/components/buscar-actividades-groq";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,7 +36,8 @@ export const Route = createFileRoute("/")({
       { title: "Ciudad Viva Mayor" },
       {
         name: "description",
-        content: "Ciudad Viva Mayor — actividades para personas mayores cerca de tu barrio y del metro.",
+        content:
+          "Ciudad Viva Mayor — actividades para personas mayores cerca de tu barrio y del metro.",
       },
       { property: "og:title", content: "Ciudad Viva Mayor" },
       {
@@ -51,7 +53,9 @@ export const Route = createFileRoute("/")({
   // Siguen disponibles aislados en /comparar (tab ChileCultura).
   loader: async () => {
     try {
-      const actividades = await listarActividades({ data: { radioMetros: 2500, incluirExternos: false } });
+      const actividades = await listarActividades({
+        data: { radioMetros: 2500, incluirExternos: false },
+      });
       return { actividades, radioInicial: 2500 as number };
     } catch (e) {
       console.error("[index loader] failed to load actividades", e);
@@ -91,7 +95,9 @@ function CiudadVivaMayor() {
     setCargando(true);
     setErrorCarga(null);
     try {
-      const filtradas = await listarActividades({ data: { radioMetros: valor, incluirExternos: false } });
+      const filtradas = await listarActividades({
+        data: { radioMetros: valor, incluirExternos: false },
+      });
       setActividades(filtradas);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No pudimos cargar las actividades.";
@@ -106,9 +112,7 @@ function CiudadVivaMayor() {
     // También filtra a 800m para coherencia con Supabase
     cambiarRadio(800);
     setTimeout(() => {
-      document
-        .getElementById("actividades-barrio")
-        ?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById("actividades-barrio")?.scrollIntoView({ behavior: "smooth" });
     }, 50);
   };
 
@@ -117,101 +121,121 @@ function CiudadVivaMayor() {
 
   return (
     <AppShell>
-        <h1 className="py-6 text-center text-2xl font-extrabold leading-tight text-[#5D4037]">
-          ¡Bienvenido! ¿Qué te gustaría hacer hoy?
-        </h1>
+      <h1 className="py-6 text-center text-2xl font-extrabold leading-tight text-[#5D4037]">
+        ¡Bienvenido! ¿Qué te gustaría hacer hoy?
+      </h1>
 
-        <div className="flex flex-col gap-4">
-          {/* Botón 1 - Actividades en mi barrio — filtra 800m + muestra lista barrio Lovable */}
-          <button
-            type="button"
-            onClick={verActividadesBarrio}
-            aria-pressed={radio === 800}
-            className={`min-h-14 w-full rounded-2xl p-5 text-left shadow-sm transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 ${
-              radio === 800
-                ? "bg-[#1B7A3D] ring-4 ring-[#1B7A3D]/30 focus-visible:outline-[#1B7A3D]"
-                : "bg-[#1B7A3D] hover:bg-[#166534] active:bg-[#145A2E] focus-visible:outline-[#1B7A3D]"
-            }`}
-          >
-            <span className="flex items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
-                <MapPin className="size-6 text-white" aria-hidden />
-              </span>
-              <span className="text-xl font-extrabold leading-tight text-white">ACTIVIDADES EN MI BARRIO</span>
-            </span>
-            <span className="mt-3 flex items-start gap-2 text-base leading-snug font-medium text-white">
-              <Lightbulb className="mt-0.5 size-5 shrink-0 text-white" aria-hidden />
-              <span>Muestra eventos a 2 o 3 cuadras caminando de tu casa.</span>
-            </span>
-          </button>
+      <div className="mt-2">
+        <BuscarActividadesGroq variant="clean" />
+      </div>
 
-          {/* Botón 2 - Actividades cerca del metro — sets radio 1500 */}
-          <button
-            type="button"
-            onClick={() => cambiarRadio(1500)}
-            aria-pressed={radio === 1500}
-            className={`min-h-14 w-full rounded-2xl p-5 text-left shadow-sm transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 ${
-              radio === 1500
-                ? "bg-[#1E5A8A] ring-4 ring-[#1E5A8A]/30 focus-visible:outline-[#1E5A8A]"
-                : "bg-[#1E5A8A] hover:bg-[#164A70] active:bg-[#133D5E] focus-visible:outline-[#1E5A8A]"
-            }`}
-          >
-            <span className="flex items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
-                <TrainFront className="size-6 text-white" aria-hidden />
-              </span>
-              <span className="text-xl font-extrabold leading-tight text-white">ACTIVIDADES CERCA DEL METRO</span>
-            </span>
-            <span className="mt-3 flex items-start gap-2 text-base leading-snug font-medium text-white">
-              <Lightbulb className="mt-0.5 size-5 shrink-0 text-white" aria-hidden />
-              <span>Eventos cerca de estaciones de tren.</span>
-            </span>
-          </button>
-        </div>
-
-        {/* Filtro de distancia — WCAG AAA, botones 48dp, tab vertical, letra 18sp */}
-        <section
-          aria-labelledby="filtro-distancia"
-          className="mt-6 rounded-2xl border-4 border-border bg-card p-4"
+      <div className="mt-6 flex flex-col gap-4">
+        {/* Botón 1 - Actividades en mi barrio — filtra 800m + muestra lista barrio Lovable */}
+        <button
+          type="button"
+          onClick={verActividadesBarrio}
+          aria-pressed={radio === 800}
+          className={`min-h-14 w-full rounded-2xl p-5 text-left shadow-sm transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 ${
+            radio === 800
+              ? "bg-[#1B7A3D] ring-4 ring-[#1B7A3D]/30 focus-visible:outline-[#1B7A3D]"
+              : "bg-[#1B7A3D] hover:bg-[#166534] active:bg-[#145A2E] focus-visible:outline-[#1B7A3D]"
+          }`}
         >
-          <h2 id="filtro-distancia" className="text-xl font-bold text-card-foreground">
-            ¿Qué tan lejos puede ir?
-          </h2>
-          <p className="mt-1 text-lg text-muted-foreground">Elegí la distancia máxima desde tu casa.</p>
-          <div className="mt-3 flex flex-col gap-3" role="group" aria-label="Filtro por distancia">
-            {RADIO_OPCIONES.map((op) => {
-              const activo = op.valor === radio;
-              return (
-                <button
-                  key={op.valor}
-                  onClick={() => cambiarRadio(op.valor)}
-                  aria-pressed={activo}
-                  className={`min-h-14 rounded-xl border-4 px-4 text-xl font-bold transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring ${
-                    activo
-                      ? "border-foreground bg-primary text-primary-foreground"
-                      : "border-border bg-card text-card-foreground hover:bg-accent"
-                  }`}
-                >
-                  {op.etiqueta}
-                </button>
-              );
-            })}
-          </div>
-          {cargando && (
-            <p role="status" aria-live="polite" className="mt-3 text-lg font-medium text-muted-foreground">
-              Cargando actividades…
-            </p>
-          )}
-          {errorCarga && (
-            <p role="alert" className="mt-3 rounded-xl bg-destructive/10 p-3 text-lg font-bold text-destructive">
-              {errorCarga}
-            </p>
-          )}
-        </section>
+          <span className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
+              <MapPin className="size-6 text-white" aria-hidden />
+            </span>
+            <span className="text-xl font-extrabold leading-tight text-white">
+              ACTIVIDADES EN MI BARRIO
+            </span>
+          </span>
+          <span className="mt-3 flex items-start gap-2 text-base leading-snug font-medium text-white">
+            <Lightbulb className="mt-0.5 size-5 shrink-0 text-white" aria-hidden />
+            <span>Muestra eventos a 2 o 3 cuadras caminando de tu casa.</span>
+          </span>
+        </button>
 
-        {/* Sección naranja - Lo más cercano — OCULTA temporal (MOSTRAR_LISTADO_HOME) */}
-        {MOSTRAR_LISTADO_HOME && (
-        <section className="mt-6 overflow-hidden rounded-2xl shadow-sm" aria-labelledby="lo-mas-cercano">
+        {/* Botón 2 - Actividades cerca del metro — sets radio 1500 */}
+        <button
+          type="button"
+          onClick={() => cambiarRadio(1500)}
+          aria-pressed={radio === 1500}
+          className={`min-h-14 w-full rounded-2xl p-5 text-left shadow-sm transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 ${
+            radio === 1500
+              ? "bg-[#1E5A8A] ring-4 ring-[#1E5A8A]/30 focus-visible:outline-[#1E5A8A]"
+              : "bg-[#1E5A8A] hover:bg-[#164A70] active:bg-[#133D5E] focus-visible:outline-[#1E5A8A]"
+          }`}
+        >
+          <span className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
+              <TrainFront className="size-6 text-white" aria-hidden />
+            </span>
+            <span className="text-xl font-extrabold leading-tight text-white">
+              ACTIVIDADES CERCA DEL METRO
+            </span>
+          </span>
+          <span className="mt-3 flex items-start gap-2 text-base leading-snug font-medium text-white">
+            <Lightbulb className="mt-0.5 size-5 shrink-0 text-white" aria-hidden />
+            <span>Eventos cerca de estaciones de tren.</span>
+          </span>
+        </button>
+      </div>
+
+      {/* Filtro de distancia — WCAG AAA, botones 48dp, tab vertical, letra 18sp */}
+      <section
+        aria-labelledby="filtro-distancia"
+        className="mt-6 rounded-2xl border-4 border-border bg-card p-4"
+      >
+        <h2 id="filtro-distancia" className="text-xl font-bold text-card-foreground">
+          ¿Qué tan lejos puede ir?
+        </h2>
+        <p className="mt-1 text-lg text-muted-foreground">
+          Elegí la distancia máxima desde tu casa.
+        </p>
+        <div className="mt-3 flex flex-col gap-3" role="group" aria-label="Filtro por distancia">
+          {RADIO_OPCIONES.map((op) => {
+            const activo = op.valor === radio;
+            return (
+              <button
+                key={op.valor}
+                onClick={() => cambiarRadio(op.valor)}
+                aria-pressed={activo}
+                className={`min-h-14 rounded-xl border-4 px-4 text-xl font-bold transition-colors focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring ${
+                  activo
+                    ? "border-foreground bg-primary text-primary-foreground"
+                    : "border-border bg-card text-card-foreground hover:bg-accent"
+                }`}
+              >
+                {op.etiqueta}
+              </button>
+            );
+          })}
+        </div>
+        {cargando && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="mt-3 text-lg font-medium text-muted-foreground"
+          >
+            Cargando actividades…
+          </p>
+        )}
+        {errorCarga && (
+          <p
+            role="alert"
+            className="mt-3 rounded-xl bg-destructive/10 p-3 text-lg font-bold text-destructive"
+          >
+            {errorCarga}
+          </p>
+        )}
+      </section>
+
+      {/* Sección naranja - Lo más cercano — OCULTA temporal (MOSTRAR_LISTADO_HOME) */}
+      {MOSTRAR_LISTADO_HOME && (
+        <section
+          className="mt-6 overflow-hidden rounded-2xl shadow-sm"
+          aria-labelledby="lo-mas-cercano"
+        >
           <div className="bg-[#F57C00] p-3 text-center">
             <h2
               id="lo-mas-cercano"
@@ -224,13 +248,16 @@ function CiudadVivaMayor() {
 
           <div className="space-y-4 bg-[#FFF3E0] p-4">
             <p className="text-center text-lg font-bold text-[#5D4037]" aria-live="polite">
-              {ordenadas.length} {ordenadas.length === 1 ? "actividad cercana" : "actividades cercanas"} a{" "}
+              {ordenadas.length}{" "}
+              {ordenadas.length === 1 ? "actividad cercana" : "actividades cercanas"} a{" "}
               {formatearDistancia(radio)}
             </p>
 
             {ordenadas.length === 0 && !cargando && (
               <div className="rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-sm">
-                <p className="text-xl font-bold text-foreground">No hay actividades en esa distancia.</p>
+                <p className="text-xl font-bold text-foreground">
+                  No hay actividades en esa distancia.
+                </p>
                 <p className="mt-2 text-lg text-muted-foreground">Probá con una distancia mayor.</p>
                 <button
                   type="button"
@@ -270,7 +297,9 @@ function CiudadVivaMayor() {
                           )}
                         </div>
                         {a.fuente === "chilecultura" && a.commune && (
-                          <p className="text-sm font-semibold text-[#5D4037]">Aprox. en {a.commune}</p>
+                          <p className="text-sm font-semibold text-[#5D4037]">
+                            Aprox. en {a.commune}
+                          </p>
                         )}
 
                         <h3 className="text-xl font-extrabold leading-tight text-[#5D4037]">
@@ -295,7 +324,10 @@ function CiudadVivaMayor() {
                             <span>{a.lugar}</span>
                           </p>
                           <p className="flex items-start gap-2 text-[15px] font-medium leading-snug text-[#424242]">
-                            <Footprints className="mt-0.5 size-4 shrink-0 text-[#616161]" aria-hidden />
+                            <Footprints
+                              className="mt-0.5 size-4 shrink-0 text-[#616161]"
+                              aria-hidden
+                            />
                             <span>
                               A {formatearDistancia(a.distanciaMetros)} de su casa
                               {a.fuente === "chilecultura" && (
@@ -305,7 +337,9 @@ function CiudadVivaMayor() {
                               )}
                             </span>
                           </p>
-                          <p className="line-clamp-3 text-[15px] leading-snug text-[#616161]">{a.descripcion}</p>
+                          <p className="line-clamp-3 text-[15px] leading-snug text-[#616161]">
+                            {a.descripcion}
+                          </p>
                           <div className="flex flex-wrap gap-2 pt-1">
                             <span
                               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
@@ -329,7 +363,12 @@ function CiudadVivaMayor() {
                               }`}
                             >
                               <Car className="size-3.5" aria-hidden />
-                              Estac.: {a.estacionamiento === "si" ? "Sí" : a.estacionamiento === "no" ? "No" : "Sin info"}
+                              Estac.:{" "}
+                              {a.estacionamiento === "si"
+                                ? "Sí"
+                                : a.estacionamiento === "no"
+                                  ? "No"
+                                  : "Sin info"}
                             </span>
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">
                               <DollarSign className="size-3.5" aria-hidden />
@@ -372,14 +411,10 @@ function CiudadVivaMayor() {
             </Link>
           </div>
         </section>
-        )}
+      )}
 
       {MOSTRAR_LISTADO_HOME && mostrarBarrio && (
-        <section
-          id="actividades-barrio"
-          aria-labelledby="titulo-barrio"
-          className="mt-6"
-        >
+        <section id="actividades-barrio" aria-labelledby="titulo-barrio" className="mt-6">
           <h2
             id="titulo-barrio"
             className="py-6 text-center text-2xl font-extrabold leading-tight text-[#5D4037]"

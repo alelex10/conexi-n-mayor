@@ -11,13 +11,23 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { buscarActividadesPorUbicacionFn, listarModelosGroqFn } from "@/lib/groq-actividades.functions";
+import {
+  buscarActividadesPorUbicacionFn,
+  listarModelosGroqFn,
+} from "@/lib/groq-actividades.functions";
+import { formatearFecha } from "@/data/actividades";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
 type GroqModelUI = {
@@ -39,7 +49,8 @@ const FALLBACK_MODELS: GroqModelUI[] = [
   {
     id: "openai/gpt-oss-120b",
     label: "GPT OSS 120B (recomendado)",
-    description: "Recomendado — verificado 2026-09-03: único que pasa response_format json_object con el prompt de actividades; default para búsqueda",
+    description:
+      "Recomendado — verificado 2026-09-03: único que pasa response_format json_object con el prompt de actividades; default para búsqueda",
     contextWindow: 131072,
     pricingIn: "$0.15 / 1M",
     pricingOut: "$0.60 / 1M",
@@ -51,7 +62,8 @@ const FALLBACK_MODELS: GroqModelUI[] = [
   {
     id: "qwen/qwen3.6-27b",
     label: "Qwen 3 27B",
-    description: "Qwen 3.6 27B — NO usar con response_format json_object para búsqueda de actividades (Groq 400 json_validate_failed verificado 2026-09-03); solo con retry sin formato",
+    description:
+      "Qwen 3.6 27B — NO usar con response_format json_object para búsqueda de actividades (Groq 400 json_validate_failed verificado 2026-09-03); solo con retry sin formato",
     contextWindow: 131072,
     pricingIn: "$0.60 / 1M",
     pricingOut: "$3.00 / 1M",
@@ -117,7 +129,8 @@ type BuscarResult = {
   raw: unknown;
 };
 
-export function BuscarActividadesGroq() {
+export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" | "clean" }) {
+  const isClean = variant === "clean";
   const [modelos, setModelos] = useState<GroqModelUI[]>(FALLBACK_MODELS);
   const [modeloSeleccionado, setModeloSeleccionado] = useState<string>(DEFAULT_MODEL);
   const [source, setSource] = useState<"groq" | "static">("static");
@@ -136,6 +149,10 @@ export function BuscarActividadesGroq() {
   const startRef = useRef<number>(0);
 
   useEffect(() => {
+    if (isClean) {
+      setLoadingModelos(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -167,7 +184,7 @@ export function BuscarActividadesGroq() {
 
   const handleBuscar = async () => {
     if (ubicacion.trim().length < 3) {
-      setError("La ubicación debe tener al menos 3 caracteres (ej. 'Lo Prado, Santiago').");
+      setError("Escriba su comuna o barrio. Por ejemplo: Lo Prado, Santiago.");
       return;
     }
     setBuscando(true);
@@ -176,6 +193,14 @@ export function BuscarActividadesGroq() {
     setElapsedMs(null);
     startRef.current = Date.now();
     try {
+      if (isClean) {
+        const res = await buscarActividadesPorUbicacionFn({
+          data: { ubicacion: ubicacion.trim(), radioMetros: 2500, model: DEFAULT_MODEL },
+        });
+        setResult(res as BuscarResult);
+        setElapsedMs(Date.now() - startRef.current);
+        return;
+      }
       const payload: {
         ubicacion: string;
         radioMetros?: number;
@@ -199,7 +224,9 @@ export function BuscarActividadesGroq() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("Missing GROQ_API_KEY") || msg.includes("GROQ_API_KEY")) {
-        setError("Falta GROQ_API_KEY en el servidor (.env). Conseguí una en https://console.groq.com/keys");
+        setError(
+          "Falta GROQ_API_KEY en el servidor (.env). Conseguí una en https://console.groq.com/keys",
+        );
       } else {
         setError(msg);
       }
@@ -211,6 +238,154 @@ export function BuscarActividadesGroq() {
 
   const selectedMeta = modelos.find((m) => m.id === modeloSeleccionado) ?? null;
 
+  if (isClean) {
+    const fechaLimpia = (fecha: string | null): string | null => {
+      if (!fecha) return null;
+      const iso = fecha.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+        try {
+          return formatearFecha(iso);
+        } catch {
+          return fecha;
+        }
+      }
+      return fecha;
+    };
+    return (
+      <section
+        aria-labelledby="buscar-ia-titulo"
+        className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5"
+      >
+        <h2 id="buscar-ia-titulo" className="text-xl font-bold text-card-foreground">
+          Buscar actividades cerca de usted
+        </h2>
+        <div className="mt-3 space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="ubicacion-clean" className="text-xl font-bold text-card-foreground">
+              ¿Dónde busca actividades?
+            </Label>
+            <Input
+              id="ubicacion-clean"
+              value={ubicacion}
+              onChange={(e) => setUbicacion(e.target.value)}
+              placeholder="Lo Prado, Santiago, Chile"
+              autoComplete="address-level2"
+              className="min-h-14 bg-white text-lg"
+            />
+            <p className="text-lg text-muted-foreground">Escriba su comuna o barrio.</p>
+          </div>
+          <Button
+            type="button"
+            onClick={handleBuscar}
+            disabled={buscando || ubicacion.trim().length < 3}
+            className="min-h-14 w-full rounded-xl bg-[#1E6CB4] px-6 text-xl font-bold text-white hover:bg-[#164F8A] disabled:opacity-50"
+          >
+            {buscando ? (
+              <>
+                <Loader2 className="size-6 animate-spin" aria-hidden />
+                Buscando…
+              </>
+            ) : (
+              <>
+                <Search className="size-6" aria-hidden />
+                Buscar actividades
+              </>
+            )}
+          </Button>
+          {buscando && (
+            <p
+              role="status"
+              aria-live="polite"
+              className="text-lg font-medium text-muted-foreground"
+            >
+              Buscando actividades cerca de usted…
+            </p>
+          )}
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl bg-destructive/10 p-3 text-lg font-bold text-destructive"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+
+        {result && (
+          <div className="mt-4 space-y-4">
+            <p className="text-center text-lg font-bold text-[#5D4037]" aria-live="polite">
+              {result.total === 0
+                ? "No encontramos actividades. Pruebe con otra comuna cercana."
+                : `${result.total} ${result.total === 1 ? "actividad encontrada" : "actividades encontradas"}`}
+            </p>
+            {result.actividades.length > 0 && (
+              <ul className="space-y-4" aria-label="Actividades encontradas">
+                {result.actividades.map((a, idx) => {
+                  const destino = [a.lugar, a.direccion].filter(Boolean).join(", ");
+                  const mapsUrl = destino
+                    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destino)}`
+                    : null;
+                  const fechaTexto = fechaLimpia(a.fecha);
+                  return (
+                    <li key={`${a.nombre}-${idx}`}>
+                      <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-block rounded-lg bg-accent px-3 py-1 text-base font-bold text-accent-foreground">
+                              {a.categoria}
+                            </span>
+                            <span
+                              className={`inline-block rounded-lg px-3 py-1 text-base font-extrabold ${
+                                a.gratuito
+                                  ? "bg-[#1B7A3D] text-white"
+                                  : "bg-secondary text-secondary-foreground"
+                              }`}
+                            >
+                              {a.gratuito ? "Gratuito" : a.precio_texto || "De pago"}
+                            </span>
+                          </div>
+                          <h3 className="text-xl font-extrabold leading-tight text-[#5D4037]">
+                            {a.nombre}
+                          </h3>
+                          {(fechaTexto || a.hora) && (
+                            <p className="text-lg font-medium leading-snug text-[#424242]">
+                              {fechaTexto}
+                              {fechaTexto && a.hora
+                                ? ` · ${a.hora} horas`
+                                : a.hora
+                                  ? `${a.hora} horas`
+                                  : ""}
+                            </p>
+                          )}
+                          {destino && (
+                            <p className="flex items-start gap-2 text-lg font-medium leading-snug text-[#424242]">
+                              <MapPin className="mt-1 size-5 shrink-0 text-[#616161]" aria-hidden />
+                              <span>{destino}</span>
+                            </p>
+                          )}
+                          {mapsUrl && (
+                            <a
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex min-h-14 w-full items-center justify-center rounded-xl bg-[#1E6CB4] px-4 py-2 text-xl font-bold text-white shadow-sm transition-colors hover:bg-[#164F8A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1E6CB4]"
+                            >
+                              Ver cómo llegar
+                            </a>
+                          )}
+                        </div>
+                      </article>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  }
+
   return (
     <Card className="border-2">
       <CardHeader>
@@ -219,9 +394,10 @@ export function BuscarActividadesGroq() {
           Buscar actividades — Groq (búsqueda por ubicación)
         </CardTitle>
         <CardDescription className="text-base">
-          Buscá actividades reales en la web cerca de una ubicación usando{" "}
-          <strong>Groq</strong> (simula búsqueda web vía LLM — sin Live Search nativo). Sin autenticación — solo para MVP.
-          Patrón replicado de Groq vision (afiches) pero en dominio <em>búsqueda por ubicación</em> (simulada vía prompt).
+          Buscá actividades reales en la web cerca de una ubicación usando <strong>Groq</strong>{" "}
+          (simula búsqueda web vía LLM — sin Live Search nativo). Sin autenticación — solo para MVP.
+          Patrón replicado de Groq vision (afiches) pero en dominio <em>búsqueda por ubicación</em>{" "}
+          (simulada vía prompt).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -241,7 +417,9 @@ export function BuscarActividadesGroq() {
                 </Badge>
               )}
               {hasGroqKey === true && (
-                <Badge className="bg-green-600 text-white border-transparent">GROQ_API_KEY OK</Badge>
+                <Badge className="bg-green-600 text-white border-transparent">
+                  GROQ_API_KEY OK
+                </Badge>
               )}
             </div>
           </div>
@@ -252,7 +430,10 @@ export function BuscarActividadesGroq() {
             </div>
           ) : (
             <Select value={modeloSeleccionado} onValueChange={setModeloSeleccionado}>
-              <SelectTrigger id="modelo-groq" className="min-h-12 w-full bg-white text-left text-base">
+              <SelectTrigger
+                id="modelo-groq"
+                className="min-h-12 w-full bg-white text-left text-base"
+              >
                 <SelectValue placeholder="Elegí un modelo" />
               </SelectTrigger>
               <SelectContent>
@@ -262,10 +443,15 @@ export function BuscarActividadesGroq() {
                       <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
                         {m.label}
                         {m.recommended && (
-                          <Badge className="bg-[#1E6CB4] text-white border-transparent text-xs">Recomendado</Badge>
+                          <Badge className="bg-[#1E6CB4] text-white border-transparent text-xs">
+                            Recomendado
+                          </Badge>
                         )}
                         {m.vision && (
-                          <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700 text-xs">
+                          <Badge
+                            variant="outline"
+                            className="border-green-300 bg-green-50 text-green-700 text-xs"
+                          >
                             Visión
                           </Badge>
                         )}
@@ -282,15 +468,20 @@ export function BuscarActividadesGroq() {
             <div className="grid gap-2 rounded-lg bg-white p-3 text-sm leading-snug sm:grid-cols-2">
               <p className="col-span-2 text-sm text-muted-foreground">{selectedMeta.description}</p>
               <p>
-                <span className="font-bold">Contexto:</span> {selectedMeta.contextWindow.toLocaleString("es-CL")} tokens
+                <span className="font-bold">Contexto:</span>{" "}
+                {selectedMeta.contextWindow.toLocaleString("es-CL")} tokens
               </p>
               <p>
                 <span className="font-bold">Visión:</span> {selectedMeta.vision ? "Sí" : "No"}
               </p>
               <p>
-                <span className="font-bold">Precio:</span> {selectedMeta.pricing ?? `${selectedMeta.pricingIn ?? "—"} in / ${selectedMeta.pricingOut ?? "—"} out`}
+                <span className="font-bold">Precio:</span>{" "}
+                {selectedMeta.pricing ??
+                  `${selectedMeta.pricingIn ?? "—"} in / ${selectedMeta.pricingOut ?? "—"} out`}
               </p>
-              <p className="col-span-2 font-mono text-xs text-muted-foreground">id: {selectedMeta.id}</p>
+              <p className="col-span-2 font-mono text-xs text-muted-foreground">
+                id: {selectedMeta.id}
+              </p>
             </div>
           )}
 
@@ -318,7 +509,8 @@ export function BuscarActividadesGroq() {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Podés usar barrio, comuna o dirección (ej. &quot;Providencia, Santiago&quot;, &quot;San Pablo 5850, Lo Prado&quot;).
+              Podés usar barrio, comuna o dirección (ej. &quot;Providencia, Santiago&quot;,
+              &quot;San Pablo 5850, Lo Prado&quot;).
             </p>
           </div>
 
@@ -344,7 +536,10 @@ export function BuscarActividadesGroq() {
               <Label htmlFor="categoria" className="text-sm font-bold">
                 Categoría
               </Label>
-              <Select value={categoria || "todas"} onValueChange={(v) => setCategoria(v === "todas" ? "" : v)}>
+              <Select
+                value={categoria || "todas"}
+                onValueChange={(v) => setCategoria(v === "todas" ? "" : v)}
+              >
                 <SelectTrigger id="categoria" className="min-h-10 bg-white">
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
@@ -396,12 +591,15 @@ export function BuscarActividadesGroq() {
             <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
               <Clock3 className="size-4" aria-hidden />
               {elapsedMs} ms · modelo:{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{modeloSeleccionado}</code>
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                {modeloSeleccionado}
+              </code>
             </span>
           )}
           {result && (
             <Badge variant="secondary" className="text-xs">
-              {result.total} resultado{result.total === 1 ? "" : "s"} · confidence {result.confidence.toFixed(2)}
+              {result.total} resultado{result.total === 1 ? "" : "s"} · confidence{" "}
+              {result.confidence.toFixed(2)}
             </Badge>
           )}
         </div>
@@ -423,20 +621,27 @@ export function BuscarActividadesGroq() {
               >
                 console.groq.com/keys
               </a>
-              ). Mientras tanto el selector funciona y la lista es estática, pero la búsqueda dará error hasta tener la key.
+              ). Mientras tanto el selector funciona y la lista es estática, pero la búsqueda dará
+              error hasta tener la key.
             </p>
           </div>
         )}
 
         {error && (
-          <div role="alert" className="rounded-xl border-2 border-destructive/30 bg-destructive/10 p-4">
+          <div
+            role="alert"
+            className="rounded-xl border-2 border-destructive/30 bg-destructive/10 p-4"
+          >
             <p className="flex items-center gap-2 text-base font-bold text-destructive">
               <AlertTriangle className="size-5" aria-hidden />
               Error al buscar
             </p>
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-snug text-destructive/90">{error}</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-snug text-destructive/90">
+              {error}
+            </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Tip: si es 401 revisá GROQ_API_KEY; si es 429 esperá un minuto (Groq trial tiene quota estricta).
+              Tip: si es 401 revisá GROQ_API_KEY; si es 429 esperá un minuto (Groq trial tiene quota
+              estricta).
             </p>
           </div>
         )}
@@ -458,7 +663,10 @@ export function BuscarActividadesGroq() {
                 confidence {result.confidence.toFixed(3)}
               </Badge>
               {result.needsReview ? (
-                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 gap-1">
+                <Badge
+                  variant="outline"
+                  className="border-amber-300 bg-amber-50 text-amber-800 gap-1"
+                >
                   <AlertTriangle className="size-3.5" aria-hidden />
                   Requiere revisión (HITL &lt; 0.85)
                 </Badge>
@@ -475,7 +683,9 @@ export function BuscarActividadesGroq() {
                 <MapPin className="size-3.5" aria-hidden />
                 {result.ubicacion}
               </Badge>
-              {elapsedMs !== null && <span className="text-xs text-muted-foreground">{elapsedMs} ms</span>}
+              {elapsedMs !== null && (
+                <span className="text-xs text-muted-foreground">{elapsedMs} ms</span>
+              )}
             </div>
 
             {result.warnings.length > 0 && (
@@ -496,7 +706,9 @@ export function BuscarActividadesGroq() {
 
             {result.actividades.length === 0 ? (
               <div className="rounded-lg border-2 border-dashed bg-muted/20 p-6 text-center">
-                <p className="text-base font-bold text-muted-foreground">Sin actividades encontradas</p>
+                <p className="text-base font-bold text-muted-foreground">
+                  Sin actividades encontradas
+                </p>
                 <p className="text-sm text-muted-foreground">
                   Probá con otra ubicación, ampliá el radio o sacá el filtro de categoría.
                 </p>
@@ -525,7 +737,9 @@ export function BuscarActividadesGroq() {
                           {(a.confidence * 100).toFixed(0)}%
                         </Badge>
                         {a.gratuito ? (
-                          <Badge className="bg-[#1B7A3D] text-white border-transparent text-xs">Gratuito</Badge>
+                          <Badge className="bg-[#1B7A3D] text-white border-transparent text-xs">
+                            Gratuito
+                          </Badge>
                         ) : (
                           <Badge variant="outline" className="text-xs">
                             {a.precio_texto || "De pago"}
@@ -533,11 +747,14 @@ export function BuscarActividadesGroq() {
                         )}
                       </div>
                     </div>
-                    <p className="mt-1 text-sm leading-snug text-muted-foreground">{a.descripcion}</p>
+                    <p className="mt-1 text-sm leading-snug text-muted-foreground">
+                      {a.descripcion}
+                    </p>
                     <div className="mt-2 grid gap-1 text-sm">
                       {a.fecha && (
                         <p>
-                          <span className="font-bold">Fecha:</span> {a.fecha} {a.hora ? `· ${a.hora}` : ""}
+                          <span className="font-bold">Fecha:</span> {a.fecha}{" "}
+                          {a.hora ? `· ${a.hora}` : ""}
                         </p>
                       )}
                       {!a.fecha && a.hora && (
@@ -547,7 +764,10 @@ export function BuscarActividadesGroq() {
                       )}
                       {a.lugar && (
                         <p className="flex gap-1.5">
-                          <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <MapPin
+                            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                            aria-hidden
+                          />
                           <span>
                             {a.lugar}
                             {a.direccion ? ` — ${a.direccion}` : ""}
@@ -597,7 +817,8 @@ export function BuscarActividadesGroq() {
 
             <p className="text-xs text-muted-foreground">
               HITL: confidence &lt; 0.85 se guarda best-effort en{" "}
-              <code className="rounded bg-muted px-1">busquedas_groq_pendientes</code> para revisión humana (si la tabla existe).
+              <code className="rounded bg-muted px-1">busquedas_groq_pendientes</code> para revisión
+              humana (si la tabla existe).
             </p>
           </div>
         )}
