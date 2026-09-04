@@ -143,6 +143,8 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
 
     return {
       status,
+      proveedor,
+
       actividades: result.actividades,
       total: result.total,
       confidence,
