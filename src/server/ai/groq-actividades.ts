@@ -82,6 +82,16 @@ export const GroqBusquedaSchema = z.object({
 
 export type GroqBusquedaRaw = z.infer<typeof GroqBusquedaSchema>;
 
+/**
+ * A real web reference backing a search result (Google Search grounding,
+ * Tavily, Serper, ...). Providers that browse the live web attach these so
+ * the UI can render verifiable links instead of memory-only answers.
+ */
+export type GroundedSource = {
+  title: string;
+  url: string;
+};
+
 export type BuscarActividadesInput = {
   ubicacion: string;
   radioMetros?: number | undefined;
@@ -101,6 +111,8 @@ export type GroqBusquedaResult = {
   ubicacion: string;
   warnings: string[];
   raw: GroqBusquedaRaw;
+  /** Real web references when the provider grounds on live search. Optional for backward compatibility (Groq/Lovable don't browse). */
+  sources?: GroundedSource[];
 };
 
 // ── Client & model resolution ────────────────────────────────────────────────

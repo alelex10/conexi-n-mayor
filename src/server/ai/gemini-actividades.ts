@@ -8,14 +8,16 @@ import { GoogleGenAI } from "@google/genai";
  * builders, JSON fence stripping, confidence computation shape) and only
  * swaps the client + the generateContent call.
  *
- * Explicitly NOT wired: Tavily/external web search. Tavily is a Groq-path
- * concern; Gemini resolves the search on its own (own knowledge plus any
- * grounding the SDK/model applies) using the same "how to search" context
- * (valid activity definition, format, radius, categories).
+ * Explicitly NOT wired: Tavily/external web search (a Groq-path concern, left
+ * untouched). Gemini grounds EVERY request with the Google Search tool and
+ * exposes the used web pages as `sources` on the result — memory-only answers
+ * are flagged with a "no grounded sources" warning and a capped confidence.
  *
  * - GEMINI_API_KEY is read INSIDE getGeminiClient() — Workers-safe (Cloudflare/Nitro)
- * - config.responseMimeType "application/json" requires the word "JSON" in the
- *   prompt (already present in the shared system prompt)
+ * - JSON is requested via the prompt (the word "JSON" is already present in the
+ *   shared system prompt) and parsed with stripJsonFences — responseMimeType is
+ *   deliberately NOT set because it is incompatible with the googleSearch tool
+ *   on gemini-2.5-flash via generateContent
  * - Free tier is ~10 RPM plus a daily cap: 429s get one backoff retry, then a
  *   friendly error telling the user to wait and retry
  */
@@ -28,7 +30,10 @@ import {
   type BuscarActividadesInput,
   type GroqBusquedaRaw,
   type GroqBusquedaResult,
+  type GroundedSource,
 } from "./groq-actividades";
+
+export type { GroundedSource };
 
 export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -57,7 +62,10 @@ export const GEMINI_MODELS: GeminiModelInfo[] = [
     pricing: "Google AI Studio (free tier available)",
     recommended: true,
     vision: true,
-    supportsLiveSearch: false,
+    // supportsLiveSearch: true means buscarActividadesConGemini always calls the
+    // model with the Google Search grounding tool, so answers are backed by real
+    // web results exposed as `sources` (groundingChunks[].web {uri, title}).
+    supportsLiveSearch: true,
   },
   {
     id: "gemini-2.5-flash-latest",
@@ -70,7 +78,8 @@ export const GEMINI_MODELS: GeminiModelInfo[] = [
     pricing: "Google AI Studio (free tier available)",
     recommended: false,
     vision: true,
-    supportsLiveSearch: false,
+    // Same family as the pinned default: grounded with Google Search as well.
+    supportsLiveSearch: true,
   },
 ];
 
@@ -148,10 +157,71 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Warning attached when the model answered without any grounded web source. */
+export const NO_GROUNDED_SOURCES_WARNING =
+  "[gemini] No grounded sources: Google Search returned no grounding chunks for this query, " +
+  "so these results are ungrounded (model memory) — verify before publishing.";
+
 /**
- * Searches activities using Gemini. Same result shape as Groq/Lovable.
- * No Tavily results are injected — Gemini resolves the search on its own
- * from the shared prompt context.
+ * Ungrounded answers can never clear the HITL gate (0.85): cap confidence so
+ * they always land in human review instead of being served as verified.
+ */
+export const UNGROUNDED_CONFIDENCE_CAP = 0.5;
+
+/**
+ * Without responseMimeType the model sometimes prefixes the payload
+ * ("JSON", "Here is the JSON:", ...) or appends trailing commentary.
+ * Slice from the first "{" to the last "}" so JSON.parse sees the object.
+ * Returns the input unchanged when no brace pair is found (parse then fails
+ * with the usual informative error).
+ */
+export function extractJsonObject(cleaned: string): string {
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return cleaned;
+  return cleaned.slice(start, end + 1);
+}
+
+/**
+ * Extracts deduplicated {title, url} web references from a generateContent
+ * response (response.candidates[0].groundingMetadata.groundingChunks[].web).
+ * Takes `unknown` so mocked responses in tests don't need SDK types.
+ */
+export function extractGroundedSources(response: unknown): GroundedSource[] {
+  const candidates = (response as { candidates?: unknown })?.candidates;
+  const first = Array.isArray(candidates) ? candidates[0] : undefined;
+  const chunks = (first as { groundingMetadata?: { groundingChunks?: unknown } })?.groundingMetadata
+    ?.groundingChunks;
+  if (!Array.isArray(chunks)) return [];
+  const seen = new Set<string>();
+  const sources: GroundedSource[] = [];
+  for (const chunk of chunks) {
+    const web = (chunk as { web?: { uri?: unknown; title?: unknown } })?.web;
+    const url = typeof web?.uri === "string" ? web.uri.trim() : "";
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const title = typeof web?.title === "string" && web.title.trim().length > 0 ? web.title.trim() : url;
+    sources.push({ title, url });
+  }
+  return sources;
+}
+
+/**
+ * Searches activities using Gemini with Google Search grounding ALWAYS on.
+ * Same result shape as Groq/Lovable, plus `sources` (real web references).
+ *
+ * Grounding notes (verified against @google/genai 2.21.0 + Gemini docs):
+ * - config.tools [{ googleSearch: {} }] enables live web search; the used
+ *   URLs come back in response.candidates[0].groundingMetadata.groundingChunks[].web {uri, title}.
+ * - responseMimeType "application/json" is NOT combined with the search tool on
+ *   gemini-2.5-flash via generateContent (silent de-grounding / 400s reported) —
+ *   so we request JSON through the prompt and parse response.text with the
+ *   shared stripJsonFences helper, keeping the Zod validation.
+ * - When grounding returns zero chunks the answer is ungrounded (model memory):
+ *   we retry ONCE with an explicit reground nudge; if it still comes back
+ *   ungrounded we surface an explicit "no grounded sources" warning and cap
+ *   confidence so the HITL gate (0.85) routes it to human review instead of
+ *   publishing it.
  */
 export async function buscarActividadesConGemini(
   input: BuscarActividadesInput,
@@ -168,69 +238,120 @@ export async function buscarActividadesConGemini(
 
   const client = getGeminiClient();
   const model = resolveGeminiModel(input.model);
-  const systemPrompt = buildGroqSystemPrompt(ubicacion);
-  const userPrompt = buildUserPrompt({ ...input, ubicacion });
+  // Shared harness prompts, plus a Gemini-only override appended at the end
+  // (the shared text says "simulates web search" for the Groq path — for
+  // Gemini that framing is superseded: real tool calls are mandatory).
+  const systemPrompt =
+    buildGroqSystemPrompt(ubicacion) +
+    [
+      "",
+      "GEMINI GROUNDING OVERRIDE (this request — takes precedence over the lines above):",
+      "- The Google Search tool is enabled. USE it: run web searches for the target location BEFORE writing the answer.",
+      "- Do NOT answer from memory. Every activity MUST come from a page retrieved in this request.",
+      "- If the searches return nothing usable, return {\"actividades\": []} with a warnings entry instead of inventing activities.",
+    ].join("\n");
+  const userPrompt =
+    buildUserPrompt({ ...input, ubicacion }) +
+    "\nGrounding is enabled for this request: search the web first, then answer only with what you retrieved.";
 
-  let rawContent: string | null | undefined;
-  try {
-    const requestOnce = () =>
-      client.models.generateContent({
-        model,
-        contents: userPrompt,
-        config: {
-          systemInstruction: systemPrompt,
-          temperature: 0.2,
-          responseMimeType: "application/json",
-        },
-      });
+  const userPromptBase = buildUserPrompt({ ...input, ubicacion });
+  const GROUNDING_SUFFIX =
+    "\nGrounding is enabled for this request: search the web first, then answer only with what you retrieved.";
+  // Second-attempt nudge when the first attempt skipped the search tool.
+  const REGROUND_SUFFIX =
+    "\nIMPORTANT: the previous answer was rejected because it used no web sources. " +
+    "This time you MUST call the Google Search tool before answering — a memory-only answer will be rejected again.";
+
+  const buildRequest = (contents: string) => ({
+    model,
+    contents,
+    config: {
+      systemInstruction: systemPrompt,
+      temperature: 0.2,
+      // Google Search grounding is ALWAYS on (never memory-only answers).
+      // NOTE: no responseMimeType here — it is incompatible with the search
+      // tool on gemini-2.5-flash via generateContent, so JSON is requested
+      // via the prompt and parsed with stripJsonFences below.
+      tools: [{ googleSearch: {} }],
+    },
+  });
+
+  // Single attempt with free-tier 429 backoff (retry ONCE before surfacing).
+  const requestWithBackoff = async (contents: string) => {
     try {
-      const response = await requestOnce();
-      rawContent = response.text;
+      return await client.models.generateContent(buildRequest(contents));
     } catch (firstErr) {
-      // Free-tier 429: wait with backoff and retry ONCE before surfacing.
       if (!isRateLimitError(firstErr)) throw firstErr;
       console.warn(`[gemini] rate limited on ${model} (429) — retrying once after 2s backoff`);
       await sleep(2000);
-      const retryResponse = await requestOnce();
-      rawContent = retryResponse.text;
+      return await client.models.generateContent(buildRequest(contents));
+    }
+  };
+
+  const parseResponse = (raw: string | null | undefined) => {
+    if (!raw) {
+      throw new Error("[gemini] The model returned no content.");
+    }
+    // stripJsonFences handles ``` fences; extractJsonObject handles the bare
+    // "JSON" prefix / trailing commentary the model adds without JSON mode.
+    const cleaned = extractJsonObject(stripJsonFences(raw));
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      throw new Error(
+        `[gemini] Could not parse model JSON. First 800 chars: ${cleaned.slice(0, 800)} — ${(e as Error).message}`,
+      );
+    }
+
+    let validated: GroqBusquedaRaw;
+    try {
+      validated = GroqBusquedaSchema.parse(parsed);
+    } catch (zodErr) {
+      if (Array.isArray(parsed)) {
+        validated = GroqBusquedaSchema.parse({ actividades: parsed });
+      } else {
+        throw zodErr;
+      }
+    }
+    return validated;
+  };
+
+  let lastResponse: Awaited<ReturnType<typeof requestWithBackoff>>;
+  try {
+    const firstResponse = await requestWithBackoff(userPromptBase + GROUNDING_SUFFIX);
+    if (extractGroundedSources(firstResponse).length > 0) {
+      lastResponse = firstResponse;
+    } else {
+      // The model skipped the search tool: ONE reground attempt with an
+      // explicit nudge before accepting an ungrounded answer.
+      console.warn("[gemini] first attempt returned no grounding chunks — retrying once with reground nudge");
+      lastResponse = await requestWithBackoff(userPromptBase + REGROUND_SUFFIX);
     }
   } catch (error) {
     throw toFriendlyError(error);
   }
 
-  if (!rawContent) {
-    throw new Error("[gemini] The model returned no content.");
-  }
-
-  const cleaned = stripJsonFences(rawContent);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error(
-      `[gemini] Could not parse model JSON. First 800 chars: ${cleaned.slice(0, 800)} — ${(e as Error).message}`,
-    );
-  }
-
-  let validated: GroqBusquedaRaw;
-  try {
-    validated = GroqBusquedaSchema.parse(parsed);
-  } catch (zodErr) {
-    if (Array.isArray(parsed)) {
-      validated = GroqBusquedaSchema.parse({ actividades: parsed });
-    } else {
-      throw zodErr;
-    }
-  }
+  // Parsing/validation errors propagate unwrapped (same as the Groq harness).
+  const validated = parseResponse(lastResponse.text);
 
   const actividades = validated.actividades ?? [];
+  const sources = extractGroundedSources(lastResponse);
+  const warnings = [...(validated.warnings ?? [])];
+  let confidence = computeGlobalConfidence(validated);
+  if (sources.length === 0) {
+    // Unverified memory answer: flag it and force it below the HITL gate.
+    warnings.push(NO_GROUNDED_SOURCES_WARNING);
+    confidence = Math.min(confidence, UNGROUNDED_CONFIDENCE_CAP);
+  }
   return {
     actividades,
     total: validated.total ?? actividades.length,
-    confidence: computeGlobalConfidence(validated),
+    confidence,
     usedModel: model,
     ubicacion,
-    warnings: validated.warnings ?? [],
+    warnings,
     raw: validated,
+    sources,
   };
 }
