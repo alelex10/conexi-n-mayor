@@ -102,7 +102,9 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
     const confidence = result.confidence;
     const needsReview = confidence < HITL_THRESHOLD;
     const status = needsReview ? ("needs_review" as const) : ("ok" as const);
-    const usedModel = data.model?.trim() || result.usedModel || process.env["GROQ_MODEL"] || DEFAULT_GROQ_MODEL;
+    const usedModel =
+      result.usedModel || data.model?.trim() || process.env["GROQ_MODEL"] || DEFAULT_GROQ_MODEL;
+
 
     if (needsReview) {
       try {
