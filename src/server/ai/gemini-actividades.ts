@@ -134,6 +134,7 @@ function isRateLimitError(error: unknown): boolean {
 }
 
 function toFriendlyError(error: unknown): Error {
+  if (error instanceof Error && error.message.startsWith("[gemini]")) return error;
   if (isRateLimitError(error)) {
     return new Error(
       "[gemini] Rate limit exceeded (429). Gemini free tier is ~10 RPM with a daily cap. " +
@@ -143,6 +144,21 @@ function toFriendlyError(error: unknown): Error {
   }
   if (error instanceof Error) {
     const lower = error.message.toLowerCase();
+    // Zod validation failures (no responseMimeType JSON mode: the grounded
+    // model drifts date formats). Never leak the raw ZodError stack — wrap it
+    // with a retry hint instead.
+    if (error.name === "ZodError" || lower.includes("fecha must be iso")) {
+      const issues = (error as { issues?: Array<{ path?: unknown; message?: unknown }> })?.issues;
+      const detail = Array.isArray(issues)
+        ? issues
+            .slice(0, 3)
+            .map((i) => `${Array.isArray(i.path) ? i.path.join(".") : ""}: ${String(i.message ?? "")}`)
+            .join("; ")
+        : error.message.slice(0, 300);
+      return new Error(
+        `[gemini] Model output failed validation (the model response format varied) — please retry. Details: ${detail}`,
+      );
+    }
     if (lower.includes("401") || lower.includes("unauthorized") || lower.includes("api key")) {
       return new Error(
         `[gemini] Unauthorized — check GEMINI_API_KEY at https://aistudio.google.com/apikey. Cause: ${error.message}`,
@@ -204,6 +220,93 @@ export function extractGroundedSources(response: unknown): GroundedSource[] {
     sources.push({ title, url });
   }
   return sources;
+}
+
+const MESES_ES: Record<string, string> = {
+  enero: "01",
+  febrero: "02",
+  marzo: "03",
+  abril: "04",
+  mayo: "05",
+  junio: "06",
+  julio: "07",
+  agosto: "08",
+  septiembre: "09",
+  setiembre: "09",
+  octubre: "10",
+  noviembre: "11",
+  diciembre: "12",
+};
+
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * Tolerant date normalization for Gemini grounded output (no JSON mode, so the
+ * model drifts from ISO). Accepts DD/MM/YYYY, DD-MM-YYYY and Spanish long form
+ * "D de MMMM [de YYYY]" (year defaults to the current year). ISO YYYY-MM-DD
+ * passes through when it is a real calendar date. Anything else → null (the
+ * schema allows null), so validation never throws a raw ZodError at the user.
+ */
+export function normalizeFechaValue(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const y = Number(iso[1]);
+    const mo = Number(iso[2]);
+    const d = Number(iso[3]);
+    return isValidCalendarDate(y, mo, d) ? trimmed : null;
+  }
+  const numeric = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (numeric) {
+    const d = Number(numeric[1]);
+    const mo = Number(numeric[2]);
+    const y = Number(numeric[3]);
+    if (!isValidCalendarDate(y, mo, d)) return null;
+    return `${y}-${pad2(mo)}-${pad2(d)}`;
+  }
+  const longForm = trimmed.match(/^(\d{1,2})\s+de\s+([a-záéíóúñü]+)(?:\s+de\s+(\d{4}))?$/i);
+  if (longForm) {
+    const d = Number(longForm[1]);
+    const mesKey = (longForm[2] ?? "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const moStr = MESES_ES[mesKey];
+    if (!moStr) return null;
+    const mo = Number(moStr);
+    const y = longForm[3] ? Number(longForm[3]) : new Date().getFullYear();
+    if (!isValidCalendarDate(y, mo, d)) return null;
+    return `${y}-${pad2(mo)}-${pad2(d)}`;
+  }
+  return null;
+}
+
+/** Applies normalizeFechaValue to every actividad.fecha before Zod validation. */
+function normalizeFechasBeforeValidation(parsed: unknown): unknown {
+  const list = Array.isArray(parsed)
+    ? parsed
+    : (parsed as { actividades?: unknown })?.actividades;
+  if (!Array.isArray(list)) return parsed;
+  for (const act of list) {
+    if (act && typeof act === "object" && "fecha" in (act as Record<string, unknown>)) {
+      (act as Record<string, unknown>)["fecha"] = normalizeFechaValue(
+        (act as Record<string, unknown>)["fecha"],
+      );
+    }
+  }
+  return parsed;
 }
 
 /**
@@ -302,11 +405,12 @@ export async function buscarActividadesConGemini(
     }
 
     let validated: GroqBusquedaRaw;
+    const normalized = normalizeFechasBeforeValidation(parsed);
     try {
-      validated = GroqBusquedaSchema.parse(parsed);
+      validated = GroqBusquedaSchema.parse(normalized);
     } catch (zodErr) {
-      if (Array.isArray(parsed)) {
-        validated = GroqBusquedaSchema.parse({ actividades: parsed });
+      if (Array.isArray(normalized)) {
+        validated = GroqBusquedaSchema.parse({ actividades: normalized });
       } else {
         throw zodErr;
       }
@@ -329,8 +433,14 @@ export async function buscarActividadesConGemini(
     throw toFriendlyError(error);
   }
 
-  // Parsing/validation errors propagate unwrapped (same as the Groq harness).
-  const validated = parseResponse(lastResponse.text);
+  // Parsing/validation errors surface as friendly [gemini] errors with a
+  // retry hint — never a raw ZodError stack.
+  let validated: GroqBusquedaRaw;
+  try {
+    validated = parseResponse(lastResponse.text);
+  } catch (error) {
+    throw toFriendlyError(error);
+  }
 
   const actividades = validated.actividades ?? [];
   const sources = extractGroundedSources(lastResponse);

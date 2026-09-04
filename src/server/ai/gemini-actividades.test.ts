@@ -10,6 +10,7 @@ import {
   extractJsonObject,
   getGeminiClient,
   isValidGeminiModel,
+  normalizeFechaValue,
   resolveGeminiModel,
   UNGROUNDED_CONFIDENCE_CAP,
 } from "./gemini-actividades";
@@ -77,6 +78,25 @@ describe("extractJsonObject (no-JSON-mode prefix hardening)", () => {
 
   it("returns input unchanged when no brace pair exists", () => {
     expect(extractJsonObject("no json here")).toBe("no json here");
+  });
+});
+
+describe("normalizeFechaValue (tolerant Gemini dates)", () => {
+  it("accepts DD/MM/YYYY and DD-MM-YYYY as ISO", () => {
+    expect(normalizeFechaValue("12/09/2026")).toBe("2026-09-12");
+    expect(normalizeFechaValue("05-01-2026")).toBe("2026-01-05");
+  });
+
+  it("accepts Spanish long form with and without year", () => {
+    expect(normalizeFechaValue("5 de septiembre de 2026")).toBe("2026-09-05");
+    const currentYear = new Date().getFullYear();
+    expect(normalizeFechaValue("5 de septiembre")).toBe(`${currentYear}-09-05`);
+  });
+
+  it("maps free text to null instead of throwing", () => {
+    expect(normalizeFechaValue("próximo sábado")).toBeNull();
+    expect(normalizeFechaValue("")).toBeNull();
+    expect(normalizeFechaValue(null)).toBeNull();
   });
 });
 
@@ -288,5 +308,65 @@ describe("buscarActividadesConGemini grounding (mocked client)", () => {
     expect(generateContentMock.mock.calls[0]?.[0]?.config?.maxOutputTokens).toBe(8192);
     // Gemini-only prompt nudge; Groq path stays untouched.
     expect(String(generateContentMock.mock.calls[0]?.[0]?.contents)).toMatch(/fuente_url to null/i);
+  });
+
+  it("normalizes DD/MM/YYYY to ISO and free-text dates to null without throwing", async () => {
+    // Regression (live 2026-09-04): without responseMimeType the grounded model
+    // returns "12/09/2026" / "próximo sábado" and Zod threw a raw error on
+    // actividades.N.fecha. Tolerant normalization must fix that pre-validation.
+    const base = JSON.parse(validActivityJson()) as {
+      actividades: Array<Record<string, unknown>>;
+      confidence: number;
+    };
+    const withDriftedDates = {
+      ...base,
+      actividades: [
+        { ...base.actividades[0], nombre: "Actividad uno", fecha: "12/09/2026" },
+        { ...base.actividades[0], nombre: "Actividad dos", fecha: "próximo sábado" },
+      ],
+    };
+    generateContentMock.mockResolvedValueOnce({
+      text: JSON.stringify(withDriftedDates),
+      candidates: [
+        {
+          groundingMetadata: {
+            groundingChunks: [{ web: { uri: "https://example.cl/a", title: "Example A" } }],
+          },
+        },
+      ],
+    });
+
+    const result = await buscarActividadesConGemini({ ubicacion: "Lo Prado, Santiago" });
+
+    expect(result.total).toBe(2);
+    expect(result.actividades[0]?.fecha).toBe("2026-09-12");
+    expect(result.actividades[1]?.fecha).toBeNull();
+  });
+
+  it("wraps residual validation failures as friendly [gemini] errors", async () => {
+    // A payload that stays invalid AFTER normalization (empty nombre) must
+    // reject with a [gemini] retry hint, never a raw ZodError stack.
+    const base = JSON.parse(validActivityJson()) as {
+      actividades: Array<Record<string, unknown>>;
+      confidence: number;
+    };
+    const invalid = {
+      ...base,
+      actividades: [{ ...base.actividades[0], nombre: "", fecha: "12/09/2026" }],
+    };
+    generateContentMock.mockResolvedValue({
+      text: JSON.stringify(invalid),
+      candidates: [
+        {
+          groundingMetadata: {
+            groundingChunks: [{ web: { uri: "https://example.cl/a", title: "Example A" } }],
+          },
+        },
+      ],
+    });
+
+    await expect(buscarActividadesConGemini({ ubicacion: "Lo Prado, Santiago" })).rejects.toThrow(
+      /\[gemini\].*retry/i,
+    );
   });
 });
