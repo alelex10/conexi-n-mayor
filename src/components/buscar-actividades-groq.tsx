@@ -14,7 +14,9 @@ import {
 import {
   buscarActividadesPorUbicacionFn,
   listarModelosGroqFn,
+  listarModelosLovableFn,
 } from "@/lib/groq-actividades.functions";
+
 import { formatearFecha } from "@/data/actividades";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,10 +131,16 @@ type BuscarResult = {
   raw: unknown;
 };
 
+type Proveedor = "groq" | "lovable";
+
 export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" | "clean" }) {
   const isClean = variant === "clean";
+  const [proveedor, setProveedor] = useState<Proveedor>("groq");
   const [modelos, setModelos] = useState<GroqModelUI[]>(FALLBACK_MODELS);
   const [modeloSeleccionado, setModeloSeleccionado] = useState<string>(DEFAULT_MODEL);
+  const [modelosLovable, setModelosLovable] = useState<GroqModelUI[]>([]);
+  const [modeloLovable, setModeloLovable] = useState<string>("google/gemini-3.7-flash");
+  const [hasLovableKey, setHasLovableKey] = useState<boolean | null>(null);
   const [source, setSource] = useState<"groq" | "static">("static");
   const [hasGroqKey, setHasGroqKey] = useState<boolean | null>(null);
   const [loadingModelos, setLoadingModelos] = useState(true);
@@ -176,11 +184,30 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
         if (!cancelled) setLoadingModelos(false);
       }
     })();
+    (async () => {
+      try {
+        const res = await listarModelosLovableFn();
+        if (cancelled) return;
+        const list = res.models as unknown as GroqModelUI[];
+        setModelosLovable(list);
+        setHasLovableKey(Boolean(res.hasLovableKey));
+        if (list.length > 0 && !list.some((m) => m.id === modeloLovable)) {
+          setModeloLovable(res.defaultModel || list[0]!.id);
+        }
+      } catch {
+        if (!cancelled) setHasLovableKey(false);
+      }
+    })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const esLovable = proveedor === "lovable";
+  const modelosActuales = esLovable ? modelosLovable : modelos;
+  const modeloActual = esLovable ? modeloLovable : modeloSeleccionado;
+  const setModeloActual = esLovable ? setModeloLovable : setModeloSeleccionado;
 
   const handleBuscar = async () => {
     if (ubicacion.trim().length < 3) {
@@ -207,9 +234,11 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
         categoria?: string;
         fechaDesde?: string;
         model?: string;
+        proveedor?: Proveedor;
       } = {
         ubicacion: ubicacion.trim(),
-        model: modeloSeleccionado,
+        model: modeloActual,
+        proveedor,
       };
       if (radioMetros.trim()) {
         const n = Number(radioMetros);
@@ -236,7 +265,8 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
     }
   };
 
-  const selectedMeta = modelos.find((m) => m.id === modeloSeleccionado) ?? null;
+  const selectedMeta = modelosActuales.find((m) => m.id === modeloActual) ?? null;
+
 
   if (isClean) {
     const fechaLimpia = (fecha: string | null): string | null => {
