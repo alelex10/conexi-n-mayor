@@ -62,6 +62,9 @@ const buscarInputSchema = z.object({
     .optional(),
   model: z.string().trim().min(1).optional(),
   proveedor: z.enum(["groq", "lovable"]).optional(),
+  latitud: z.number().min(-90).max(90).optional(),
+  longitud: z.number().min(-180).max(180).optional(),
+  locationLabel: z.string().trim().max(200).optional(),
 });
 
 /**
@@ -81,6 +84,9 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
       categoria?: string;
       fechaDesde?: string;
       model?: string;
+      latitud?: number;
+      longitud?: number;
+      locationLabel?: string;
     } = {
       ubicacion: data.ubicacion,
     };
@@ -88,6 +94,9 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
     if (data.categoria !== undefined) groqInput.categoria = data.categoria;
     if (data.fechaDesde !== undefined) groqInput.fechaDesde = data.fechaDesde;
     if (data.model !== undefined) groqInput.model = data.model;
+    if (data.latitud !== undefined) groqInput.latitud = data.latitud;
+    if (data.longitud !== undefined) groqInput.longitud = data.longitud;
+    if (data.locationLabel !== undefined) groqInput.locationLabel = data.locationLabel;
 
     let result;
     if (proveedor === "lovable") {

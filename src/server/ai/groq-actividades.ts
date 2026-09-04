@@ -88,6 +88,9 @@ export type BuscarActividadesInput = {
   categoria?: string | undefined;
   fechaDesde?: string | undefined; // YYYY-MM-DD
   model?: string | undefined;
+  latitud?: number | undefined; // -90..90, device coords (ephemeral, advisory only)
+  longitud?: number | undefined; // -180..180, device coords (ephemeral, advisory only)
+  locationLabel?: string | undefined; // reverse-geocoded place NAME, display only
 };
 
 export type GroqBusquedaResult = {
@@ -202,6 +205,15 @@ export function buildGroqSystemPrompt(ubicacion: string): string {
 export function buildUserPrompt(input: BuscarActividadesInput): string {
   const parts: string[] = [];
   parts.push(`Ubicación: "${input.ubicacion}"`);
+  if (typeof input.latitud === "number" && typeof input.longitud === "number") {
+    const labelSuffix =
+      typeof input.locationLabel === "string" && input.locationLabel.trim().length > 0
+        ? ` cerca de ${input.locationLabel.trim()}`
+        : "";
+    parts.push(
+      `Ubicación del dispositivo (coords aproximadas, solo referencia, sin calcular distancias): ${input.latitud}, ${input.longitud}${labelSuffix} — prioriza actividades plausiblemente cercanas; nunca afirmes distancias en metros.`,
+    );
+  }
   if (input.radioMetros) parts.push(`Radio aproximado: ${input.radioMetros} metros`);
   if (input.categoria) parts.push(`Categoría preferida: ${input.categoria}`);
   if (input.fechaDesde) parts.push(`Fecha desde (YYYY-MM-DD): ${input.fechaDesde} — prioriza actividades en o después de esa fecha`);
