@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Cpu,
+  ExternalLink,
   Loader2,
   MapPin,
   Search,
@@ -106,7 +107,7 @@ const FALLBACK_GEMINI_MODELS: GroqModelUI[] = [
     pricing: "Google AI Studio (free tier disponible)",
     recommended: true,
     vision: true,
-    supportsLiveSearch: false,
+    supportsLiveSearch: true,
   },
 ];
 
@@ -149,6 +150,7 @@ type BuscarResult = {
   warnings: string[];
   needsReview: boolean;
   raw: unknown;
+  sources?: { title: string; url: string }[];
 };
 
 type Proveedor = AIProviderName;
@@ -995,6 +997,33 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                 ))}
               </div>
             )}
+
+            {proveedor === "gemini" &&
+              selectedMeta?.supportsLiveSearch &&
+              result.sources &&
+              result.sources.length > 0 && (
+                <div className="rounded-lg border border-green-200 bg-green-50/50 p-3">
+                  <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-green-800">
+                    <ExternalLink className="size-3.5" aria-hidden />
+                    Verified web sources (Google Search grounding)
+                  </p>
+                  <ul className="mt-1 space-y-1 text-sm">
+                    {result.sources.map((s) => (
+                      <li key={s.url} className="break-all">
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[#1E6CB4] underline hover:text-[#164F8A]"
+                        >
+                          <ExternalLink className="size-3 shrink-0" aria-hidden />
+                          {s.title || s.url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
             <details className="rounded-lg border bg-muted/20 p-3">
               <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold">
