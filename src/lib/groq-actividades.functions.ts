@@ -190,6 +190,9 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
       warnings: result.warnings,
       needsReview,
       raw: result.raw,
+      // Grounding references (Gemini live search). Always an array so the UI
+      // can render links without null checks; empty for Groq/Lovable.
+      sources: result.sources ?? [],
     };
   });
 
