@@ -14,7 +14,9 @@ import {
 import {
   buscarActividadesPorUbicacionFn,
   listarModelosGroqFn,
+  listarModelosLovableFn,
 } from "@/lib/groq-actividades.functions";
+
 import { formatearFecha } from "@/data/actividades";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
