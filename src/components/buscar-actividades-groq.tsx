@@ -13,9 +13,11 @@ import {
 
 import {
   buscarActividadesPorUbicacionFn,
+  listarModelosGeminiFn,
   listarModelosGroqFn,
   listarModelosLovableFn,
 } from "@/lib/groq-actividades.functions";
+import type { AIProviderName } from "@/server/ai/providers";
 import { getLocationStatusMessage, useDeviceLocation } from "@/hooks/use-device-location";
 
 import { formatearFecha } from "@/data/actividades";
@@ -32,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type GroqModelUI = {
   id: string;
@@ -91,6 +94,22 @@ const FALLBACK_MODELS: GroqModelUI[] = [
 
 const DEFAULT_MODEL = "openai/gpt-oss-120b";
 
+const FALLBACK_GEMINI_MODELS: GroqModelUI[] = [
+  {
+    id: "gemini-2.5-flash",
+    label: "Gemini 2.5 Flash (recomendado)",
+    description:
+      "Rápido y económico — default para búsqueda de actividades vía Gemini (free tier con límite ~10 RPM)",
+    contextWindow: 1000000,
+    pricingIn: null,
+    pricingOut: null,
+    pricing: "Google AI Studio (free tier disponible)",
+    recommended: true,
+    vision: true,
+    supportsLiveSearch: false,
+  },
+];
+
 const CATEGORIAS = [
   { value: "", label: "Todas" },
   { value: "taller", label: "Taller" },
@@ -132,7 +151,7 @@ type BuscarResult = {
   raw: unknown;
 };
 
-type Proveedor = "groq" | "lovable";
+type Proveedor = AIProviderName;
 
 export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" | "clean" }) {
   const isClean = variant === "clean";
@@ -142,6 +161,9 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
   const [modelosLovable, setModelosLovable] = useState<GroqModelUI[]>([]);
   const [modeloLovable, setModeloLovable] = useState<string>("google/gemini-3.7-flash");
   const [hasLovableKey, setHasLovableKey] = useState<boolean | null>(null);
+  const [modelosGemini, setModelosGemini] = useState<GroqModelUI[]>(FALLBACK_GEMINI_MODELS);
+  const [modeloGemini, setModeloGemini] = useState<string>("gemini-2.5-flash");
+  const [hasGeminiKey, setHasGeminiKey] = useState<boolean | null>(null);
   const [source, setSource] = useState<"groq" | "static">("static");
   const [hasGroqKey, setHasGroqKey] = useState<boolean | null>(null);
   const [loadingModelos, setLoadingModelos] = useState(true);
@@ -210,6 +232,23 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
         if (!cancelled) setHasLovableKey(false);
       }
     })();
+    (async () => {
+      try {
+        const res = await listarModelosGeminiFn();
+        if (cancelled) return;
+        const list = res.models as unknown as GroqModelUI[];
+        setModelosGemini(list.length > 0 ? list : FALLBACK_GEMINI_MODELS);
+        setHasGeminiKey(Boolean(res.hasGeminiKey));
+        if (list.length > 0 && !list.some((m) => m.id === modeloGemini)) {
+          setModeloGemini(res.defaultModel || list[0]!.id);
+        }
+      } catch {
+        if (!cancelled) {
+          setModelosGemini(FALLBACK_GEMINI_MODELS);
+          setHasGeminiKey(false);
+        }
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -217,9 +256,11 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
   }, []);
 
   const esLovable = proveedor === "lovable";
-  const modelosActuales = esLovable ? modelosLovable : modelos;
-  const modeloActual = esLovable ? modeloLovable : modeloSeleccionado;
-  const setModeloActual = esLovable ? setModeloLovable : setModeloSeleccionado;
+  const esGemini = proveedor === "gemini";
+  const modelosActuales = esGemini ? modelosGemini : esLovable ? modelosLovable : modelos;
+  const modeloActual = esGemini ? modeloGemini : esLovable ? modeloLovable : modeloSeleccionado;
+  const setModeloActual = esGemini ? setModeloGemini : esLovable ? setModeloLovable : setModeloSeleccionado;
+  const nombreProveedor = esGemini ? "Gemini" : esLovable ? "Lovable" : "Groq";
 
   const handleBuscar = async () => {
     if (ubicacion.trim().length < 3) {
@@ -276,6 +317,14 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
       if (msg.includes("Missing GROQ_API_KEY") || msg.includes("GROQ_API_KEY")) {
         setError(
           "Falta GROQ_API_KEY en el servidor (.env). Conseguí una en https://console.groq.com/keys",
+        );
+      } else if (msg.includes("GEMINI_API_KEY")) {
+        setError(
+          "Falta GEMINI_API_KEY en el servidor (.env). Conseguí una en https://aistudio.google.com/apikey",
+        );
+      } else if (msg.includes("LOVABLE_API_KEY")) {
+        setError(
+          "Falta LOVABLE_API_KEY en el servidor (.env). Es una clave gestionada por Lovable AI Gateway.",
         );
       } else {
         setError(msg);
@@ -458,45 +507,81 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-2xl">
           <Cpu className="size-6 text-[#1E6CB4]" aria-hidden />
-          Buscar actividades — Groq (búsqueda por ubicación)
+          Buscar actividades — AI (búsqueda por ubicación)
         </CardTitle>
         <CardDescription className="text-base">
-          Buscá actividades reales en la web cerca de una ubicación usando <strong>Groq</strong>{" "}
-          (simula búsqueda web vía LLM — sin Live Search nativo). Sin autenticación — solo para MVP.
+          Buscá actividades reales en la web cerca de una ubicación eligiendo el{" "}
+          <strong>proveedor</strong> (Groq, Lovable o Gemini). Sin autenticación — solo para MVP.
           Patrón replicado de Groq vision (afiches) pero en dominio <em>búsqueda por ubicación</em>{" "}
           (simulada vía prompt).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Modelo */}
+        {/* Proveedor + modelo */}
         <div className="space-y-3 rounded-xl border-2 border-border bg-muted/30 p-4">
+          <div className="space-y-2">
+            <Label className="text-base font-bold">Proveedor</Label>
+            <Tabs
+              value={proveedor}
+              onValueChange={(v) => setProveedor(v as Proveedor)}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="groq">Groq</TabsTrigger>
+                <TabsTrigger value="lovable">Lovable</TabsTrigger>
+                <TabsTrigger value="gemini">Gemini</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Label htmlFor="modelo-groq" className="text-base font-bold">
-              Modelo Groq
+              Modelo {nombreProveedor}
             </Label>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={source === "groq" ? "default" : "secondary"} className="text-xs">
-                {source === "groq" ? "vía Groq API" : "lista local"}
-              </Badge>
-              {hasGroqKey === false && (
+              {proveedor === "groq" && (
+                <Badge variant={source === "groq" ? "default" : "secondary"} className="text-xs">
+                  {source === "groq" ? "vía Groq API" : "lista local"}
+                </Badge>
+              )}
+              {proveedor === "groq" && hasGroqKey === false && (
                 <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
                   Sin GROQ_API_KEY — lista estática
                 </Badge>
               )}
-              {hasGroqKey === true && (
+              {proveedor === "groq" && hasGroqKey === true && (
                 <Badge className="bg-green-600 text-white border-transparent">
                   GROQ_API_KEY OK
+                </Badge>
+              )}
+              {proveedor === "lovable" && hasLovableKey === false && (
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                  Sin LOVABLE_API_KEY — lista estática
+                </Badge>
+              )}
+              {proveedor === "lovable" && hasLovableKey === true && (
+                <Badge className="bg-green-600 text-white border-transparent">
+                  LOVABLE_API_KEY OK
+                </Badge>
+              )}
+              {proveedor === "gemini" && hasGeminiKey === false && (
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                  Sin GEMINI_API_KEY — lista estática
+                </Badge>
+              )}
+              {proveedor === "gemini" && hasGeminiKey === true && (
+                <Badge className="bg-green-600 text-white border-transparent">
+                  GEMINI_API_KEY OK
                 </Badge>
               )}
             </div>
           </div>
 
-          {loadingModelos ? (
+          {loadingModelos && proveedor === "groq" ? (
             <div className="flex items-center gap-2 text-base text-muted-foreground">
               <Loader2 className="size-4 animate-spin" aria-hidden /> Cargando modelos…
             </div>
           ) : (
-            <Select value={modeloSeleccionado} onValueChange={setModeloSeleccionado}>
+            <Select value={modeloActual} onValueChange={setModeloActual}>
               <SelectTrigger
                 id="modelo-groq"
                 className="min-h-12 w-full bg-white text-left text-base"
@@ -504,7 +589,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                 <SelectValue placeholder="Elegí un modelo" />
               </SelectTrigger>
               <SelectContent>
-                {modelos.map((m) => (
+                {modelosActuales.map((m) => (
                   <SelectItem key={m.id} value={m.id} className="py-2">
                     <span className="flex flex-col items-start gap-1">
                       <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
@@ -675,7 +760,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               <Clock3 className="size-4" aria-hidden />
               {elapsedMs} ms · modelo:{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                {modeloSeleccionado}
+                {modeloActual}
               </code>
             </span>
           )}
@@ -687,7 +772,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
           )}
         </div>
 
-        {hasGroqKey === false && (
+        {proveedor === "groq" && hasGroqKey === false && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-snug text-amber-900">
             <p className="flex items-center gap-2 font-bold">
               <AlertTriangle className="size-4 text-amber-600" aria-hidden />
@@ -710,6 +795,29 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
           </div>
         )}
 
+        {proveedor === "gemini" && hasGeminiKey === false && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-snug text-amber-900">
+            <p className="flex items-center gap-2 font-bold">
+              <AlertTriangle className="size-4 text-amber-600" aria-hidden />
+              GEMINI_API_KEY no configurada en el servidor
+            </p>
+            <p className="mt-1">
+              Configurá <code className="rounded bg-white px-1">GEMINI_API_KEY</code> en{" "}
+              <code className="rounded bg-white px-1">.env</code> (conseguí una en{" "}
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold underline"
+              >
+                aistudio.google.com/apikey
+              </a>
+              ). Mientras tanto el selector funciona y la lista es estática, pero la búsqueda dará
+              error hasta tener la key.
+            </p>
+          </div>
+        )}
+
         {error && (
           <div
             role="alert"
@@ -723,8 +831,8 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               {error}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Tip: si es 401 revisá GROQ_API_KEY; si es 429 esperá un minuto (Groq trial tiene quota
-              estricta).
+              Tip: si es 401 revisá la API key del proveedor ({nombreProveedor}); si es 429 esperá
+              un minuto (los free tiers tienen quota estricta).
             </p>
           </div>
         )}
