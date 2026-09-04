@@ -115,7 +115,7 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
           radio_metros: data.radioMetros ?? null,
           raw_json: result.raw as unknown as Record<string, unknown>,
           confidence,
-          provider: `groq:${usedModel}`,
+          provider: `${proveedor}:${usedModel}`,
           status: "pendiente",
         });
         if (error) throw new Error(error.message);
