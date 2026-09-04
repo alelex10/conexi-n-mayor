@@ -193,6 +193,11 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
       // Grounding references (Gemini live search). Always an array so the UI
       // can render links without null checks; empty for Groq/Lovable.
       sources: result.sources ?? [],
+      // Real search-executed signal + full internal trace (Gemini only;
+      // undefined for Groq/Lovable). Passed through untouched: the HITL gate
+      // above and the Supabase persistence still key off `confidence` only.
+      searched: result.searched,
+      trace: result.trace,
     };
   });
 

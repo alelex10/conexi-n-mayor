@@ -113,6 +113,61 @@ export type GroqBusquedaResult = {
   raw: GroqBusquedaRaw;
   /** Real web references when the provider grounds on live search. Optional for backward compatibility (Groq/Lovable don't browse). */
   sources?: GroundedSource[];
+  /**
+   * True when the provider actually invoked a web search in this request
+   * (real API signal, e.g. Gemini groundingMetadata.webSearchQueries or
+   * searchEntryPoint), even if it returned zero usable chunks. False means
+   * the answer came from model memory. Optional for backward compatibility.
+   */
+  searched?: boolean;
+  /** Full internal trace of the provider call (attempts, tokens, grounding). Optional, backward-compatible. */
+  trace?: ActivitySearchTrace;
+};
+
+/**
+ * Per-attempt step of an activity search provider call.
+ * Prompts are truncated to 2000 chars each.
+ */
+export type ActivitySearchAttemptTrace = {
+  attempt: number;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  systemPrompt: string;
+  userPrompt: string;
+  finishReason: string | null;
+  promptTokens: number | null;
+  candidatesTokens: number | null;
+  totalTokens: number | null;
+  webSearchQueries: string[];
+  groundingChunkCount: number;
+  sourceCount: number;
+  searched: boolean;
+  backoffMs: number | null;
+  error?: string;
+};
+
+/**
+ * Full internal trace of an activity search provider call.
+ * Verdict is "grounded" only when real web sources back the answer;
+ * "memory" covers both searched-without-results and never-searched.
+ */
+export type ActivitySearchTrace = {
+  model: string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  attempts: ActivitySearchAttemptTrace[];
+  retries: { attempt: number; backoffMs: number; reason: string }[];
+  totalPromptTokens: number | null;
+  totalCandidatesTokens: number | null;
+  totalTokens: number | null;
+  queries: string[];
+  groundingChunkCount: number;
+  sourceCount: number;
+  searched: boolean;
+  confidence: number;
+  verdict: "grounded" | "memory";
 };
 
 // ── Client & model resolution ────────────────────────────────────────────────

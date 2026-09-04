@@ -27,6 +27,8 @@ import {
   buildGroqSystemPrompt,
   buildUserPrompt,
   stripJsonFences,
+  type ActivitySearchAttemptTrace,
+  type ActivitySearchTrace,
   type BuscarActividadesInput,
   type GroqBusquedaRaw,
   type GroqBusquedaResult,
@@ -34,6 +36,9 @@ import {
 } from "./groq-actividades";
 
 export type { GroundedSource };
+export type { ActivitySearchAttemptTrace, ActivitySearchTrace };
+export type GeminiAttemptTrace = ActivitySearchAttemptTrace;
+export type GeminiSearchTrace = ActivitySearchTrace;
 
 export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -222,6 +227,61 @@ export function extractGroundedSources(response: unknown): GroundedSource[] {
   return sources;
 }
 
+/**
+ * Real API signals that a web search actually ran in this request.
+ * - webSearchQueries: queries the model issued (present even with zero chunks —
+ *   this is what distinguishes "searched without results" from "never searched").
+ * - searchEntryPoint.renderedContent: HTML snippet returned when search ran.
+ * - groundingChunks: retrieved web pages (implies a search ran).
+ */
+export type GroundingSignals = {
+  webSearchQueries: string[];
+  groundingChunkCount: number;
+  hasSearchEntryPoint: boolean;
+  searched: boolean;
+};
+
+export function extractGroundingSignals(response: unknown): GroundingSignals {
+  const candidates = (response as { candidates?: unknown })?.candidates;
+  const first = (
+    Array.isArray(candidates) ? candidates[0] : undefined
+  ) as
+    | {
+        groundingMetadata?: {
+          groundingChunks?: unknown;
+          webSearchQueries?: unknown;
+          searchEntryPoint?: { renderedContent?: unknown };
+        };
+      }
+    | undefined;
+  const gm = first?.groundingMetadata;
+  const chunks = gm?.groundingChunks;
+  const groundingChunkCount = Array.isArray(chunks) ? chunks.length : 0;
+  const rawQueries = gm?.webSearchQueries;
+  const webSearchQueries = Array.isArray(rawQueries)
+    ? rawQueries.filter((q): q is string => typeof q === "string" && q.trim().length > 0)
+    : [];
+  const rendered = gm?.searchEntryPoint?.renderedContent;
+  const hasSearchEntryPoint = typeof rendered === "string" && rendered.trim().length > 0;
+  const searched = webSearchQueries.length > 0 || hasSearchEntryPoint || groundingChunkCount > 0;
+  return { webSearchQueries, groundingChunkCount, hasSearchEntryPoint, searched };
+}
+
+/**
+ * True when the response carries the real API signal of an executed web
+ * search (webSearchQueries or searchEntryPoint.renderedContent in
+ * groundingMetadata, or retrieved grounding chunks). False = memory-only.
+ */
+export function hasSearchedResponse(response: unknown): boolean {
+  return extractGroundingSignals(response).searched;
+}
+
+/** Truncates a prompt to 2000 chars for trace payloads. */
+export function truncatePromptForTrace(prompt: string, maxChars = 2000): string {
+  if (prompt.length <= maxChars) return prompt;
+  return prompt.slice(0, maxChars);
+}
+
 const MESES_ES: Record<string, string> = {
   enero: "01",
   febrero: "02",
@@ -326,6 +386,34 @@ function normalizeFechasBeforeValidation(parsed: unknown): unknown {
  *   confidence so the HITL gate (0.85) routes it to human review instead of
  *   publishing it.
  */
+/**
+ * Searches activities using Gemini with Google Search grounding ALWAYS on.
+ * Same result shape as Groq/Lovable, plus `sources` (real web references),
+ * `searched` (real API signal that a search ran) and `trace` (full internal
+ * trace: attempts, prompts, tokens, grounding, verdict).
+ *
+ * Grounding notes (verified against @google/genai 2.21.0 + Gemini docs):
+ * - config.tools [{ googleSearch: {} }] enables live web search; the used
+ *   URLs come back in response.candidates[0].groundingMetadata.groundingChunks[].web {uri, title}.
+ * - There is NO API-level forced tool use for googleSearch: ToolConfig only
+ *   carries functionCallingConfig (mode ANY applies to FunctionDeclarations,
+ *   not to the built-in grounding tool) and the GoogleSearch type exposes no
+ *   force/required flag — so the strongest available enforcement is
+ *   prompt-level MUST instructions (GROUNDING_SUFFIX / REGROUND_SUFFIX).
+ * - responseMimeType "application/json" is NOT combined with the search tool on
+ *   gemini-2.5-flash via generateContent (silent de-grounding / 400s reported) —
+ *   so we request JSON through the prompt and parse response.text with the
+ *   shared stripJsonFences helper, keeping the Zod validation.
+ * - `searched` is the real API signal (groundingMetadata.webSearchQueries or
+ *   searchEntryPoint.renderedContent, or retrieved chunks): true means a search
+ *   ran even when it returned zero usable chunks ("searched without results"),
+ *   false means the answer came from model memory.
+ * - When grounding returns zero chunks the answer is ungrounded (model memory):
+ *   we retry ONCE with an explicit reground nudge; if it still comes back
+ *   ungrounded we surface an explicit "no grounded sources" warning and cap
+ *   confidence so the HITL gate (0.85) routes it to human review instead of
+ *   publishing it.
+ */
 export async function buscarActividadesConGemini(
   input: BuscarActividadesInput,
 ): Promise<GroqBusquedaResult> {
@@ -341,25 +429,32 @@ export async function buscarActividadesConGemini(
 
   const client = getGeminiClient();
   const model = resolveGeminiModel(input.model);
+  const traceStart = new Date();
+  const attempts: ActivitySearchAttemptTrace[] = [];
+  const retries: { attempt: number; backoffMs: number; reason: string }[] = [];
   // Shared harness prompts, plus a Gemini-only override appended at the end
   // (the shared text says "simulates web search" for the Groq path — for
   // Gemini that framing is superseded: real tool calls are mandatory).
+  // NOTE: no toolConfig force exists for googleSearch (see docblock above),
+  // so these MUST instructions are the strongest available enforcement.
   const systemPrompt =
     buildGroqSystemPrompt(ubicacion) +
     [
       "",
       "GEMINI GROUNDING OVERRIDE (this request — takes precedence over the lines above):",
-      "- The Google Search tool is enabled. USE it: run web searches for the target location BEFORE writing the answer.",
-      "- Do NOT answer from memory. Every activity MUST come from a page retrieved in this request.",
+      "- The Google Search tool is enabled. You MUST use it: run web searches for the target location BEFORE writing the answer — never answer from memory.",
+      "- Every activity MUST come from a page retrieved in this request via Google Search.",
       "- If the searches return nothing usable, return {\"actividades\": []} with a warnings entry instead of inventing activities.",
     ].join("\n");
   const userPromptBase = buildUserPrompt({ ...input, ubicacion }, { omitSourceUrls: true });
   const GROUNDING_SUFFIX =
-    "\nGrounding is enabled for this request: search the web first, then answer only with what you retrieved.";
+    "\nMANDATORY GROUNDING: you MUST use the Google Search tool before answering — run at least one web search " +
+    "for the target location, then answer only with what you retrieved. Never answer from memory.";
   // Second-attempt nudge when the first attempt skipped the search tool.
   const REGROUND_SUFFIX =
-    "\nIMPORTANT: the previous answer was rejected because it used no web sources. " +
-    "This time you MUST call the Google Search tool before answering — a memory-only answer will be rejected again.";
+    "\nMANDATORY REGROUND: the previous answer was REJECTED because it used no web search " +
+    "(no groundingMetadata.webSearchQueries). You MUST call the Google Search tool now — run web searches " +
+    "for the target location BEFORE answering. A memory-only answer will be rejected again. Never answer from memory.";
 
   const buildRequest = (contents: string) => ({
     model,
@@ -372,20 +467,80 @@ export async function buscarActividadesConGemini(
       // NOTE: no responseMimeType here — it is incompatible with the search
       // tool on gemini-2.5-flash via generateContent, so JSON is requested
       // via the prompt and parsed with stripJsonFences below.
+      // NOTE: no toolConfig either — functionCallingConfig.mode ANY only
+      // forces FunctionDeclarations, not the built-in googleSearch tool.
       tools: [{ googleSearch: {} }],
     },
   });
 
   // Single attempt with free-tier 429 backoff (retry ONCE before surfacing).
-  const requestWithBackoff = async (contents: string) => {
+  const requestWithBackoff = async (contents: string, attemptNo: number) => {
     try {
       return await client.models.generateContent(buildRequest(contents));
     } catch (firstErr) {
       if (!isRateLimitError(firstErr)) throw firstErr;
+      const backoffMs = 2000;
+      const reason = firstErr instanceof Error ? firstErr.message.slice(0, 200) : String(firstErr).slice(0, 200);
+      retries.push({ attempt: attemptNo, backoffMs, reason: `429 rate limit: ${reason}` });
       console.warn(`[gemini] rate limited on ${model} (429) — retrying once after 2s backoff`);
-      await sleep(2000);
+      await sleep(backoffMs);
       return await client.models.generateContent(buildRequest(contents));
     }
+  };
+
+  const describeAttempt = (
+    response: unknown,
+    attemptNo: number,
+    contents: string,
+    startedAt: Date,
+    endedAt: Date,
+    backoffMs: number | null,
+  ): ActivitySearchAttemptTrace => {
+    const signals = extractGroundingSignals(response);
+    const chunkSources = extractGroundedSources(response);
+    const first = (
+      Array.isArray((response as { candidates?: unknown })?.candidates)
+        ? (response as { candidates: unknown[] }).candidates[0]
+        : undefined
+    ) as { finishReason?: unknown } | undefined;
+    const finishReason = typeof first?.finishReason === "string" ? first.finishReason : null;
+    const usage = (response as {
+      usageMetadata?: {
+        promptTokenCount?: unknown;
+        candidatesTokenCount?: unknown;
+        totalTokenCount?: unknown;
+      };
+    })?.usageMetadata;
+    const numOrNull = (v: unknown): number | null => (typeof v === "number" ? v : null);
+    return {
+      attempt: attemptNo,
+      startedAt: startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
+      durationMs: endedAt.getTime() - startedAt.getTime(),
+      systemPrompt: truncatePromptForTrace(systemPrompt),
+      userPrompt: truncatePromptForTrace(contents),
+      finishReason,
+      promptTokens: numOrNull(usage?.promptTokenCount),
+      candidatesTokens: numOrNull(usage?.candidatesTokenCount),
+      totalTokens: numOrNull(usage?.totalTokenCount),
+      webSearchQueries: signals.webSearchQueries,
+      groundingChunkCount: signals.groundingChunkCount,
+      sourceCount: chunkSources.length,
+      searched: signals.searched,
+      backoffMs,
+    };
+  };
+
+  const runAttempt = async (contents: string, attemptNo: number) => {
+    const startedAt = new Date();
+    const backoffBefore = retries.filter((r) => r.attempt === attemptNo).reduce((acc, r) => acc + r.backoffMs, 0);
+    const response = await requestWithBackoff(contents, attemptNo);
+    const endedAt = new Date();
+    const backoffAfter = retries.filter((r) => r.attempt === attemptNo).reduce((acc, r) => acc + r.backoffMs, 0);
+    attempts.push(
+      describeAttempt(response, attemptNo, contents, startedAt, endedAt, backoffAfter > backoffBefore ? backoffAfter : null),
+    );
+    return response;
   };
 
   const parseResponse = (raw: string | null | undefined) => {
@@ -420,16 +575,21 @@ export async function buscarActividadesConGemini(
 
   let lastResponse: Awaited<ReturnType<typeof requestWithBackoff>>;
   try {
-    const firstResponse = await requestWithBackoff(userPromptBase + GROUNDING_SUFFIX);
+    const firstResponse = await runAttempt(userPromptBase + GROUNDING_SUFFIX, 1);
     if (extractGroundedSources(firstResponse).length > 0) {
       lastResponse = firstResponse;
     } else {
-      // The model skipped the search tool: ONE reground attempt with an
-      // explicit nudge before accepting an ungrounded answer.
+      // The model skipped the search tool (or searched without usable
+      // chunks): ONE reground attempt with an explicit nudge before
+      // accepting an ungrounded answer.
       console.warn("[gemini] first attempt returned no grounding chunks — retrying once with reground nudge");
-      lastResponse = await requestWithBackoff(userPromptBase + REGROUND_SUFFIX);
+      lastResponse = await runAttempt(userPromptBase + REGROUND_SUFFIX, 2);
     }
   } catch (error) {
+    console.warn(
+      "[gemini] trace (failed before a usable response)",
+      JSON.stringify({ model, ubicacion, attempts, retries }),
+    );
     throw toFriendlyError(error);
   }
 
@@ -444,6 +604,8 @@ export async function buscarActividadesConGemini(
 
   const actividades = validated.actividades ?? [];
   const sources = extractGroundedSources(lastResponse);
+  const lastSignals = extractGroundingSignals(lastResponse);
+  const searched = lastSignals.searched;
   const warnings = [...(validated.warnings ?? [])];
   let confidence = computeGlobalConfidence(validated);
   if (sources.length === 0) {
@@ -451,6 +613,41 @@ export async function buscarActividadesConGemini(
     warnings.push(NO_GROUNDED_SOURCES_WARNING);
     confidence = Math.min(confidence, UNGROUNDED_CONFIDENCE_CAP);
   }
+  const verdict: "grounded" | "memory" = sources.length > 0 ? "grounded" : "memory";
+  const traceEnd = new Date();
+  const sumOrNull = (values: (number | null)[]): number | null => {
+    const known = values.filter((v): v is number => typeof v === "number");
+    return known.length > 0 ? known.reduce((acc, v) => acc + v, 0) : null;
+  };
+  const queries: string[] = [];
+  for (const a of attempts) {
+    for (const q of a.webSearchQueries) {
+      if (!queries.includes(q)) queries.push(q);
+    }
+  }
+  const trace: ActivitySearchTrace = {
+    model,
+    startedAt: traceStart.toISOString(),
+    endedAt: traceEnd.toISOString(),
+    durationMs: traceEnd.getTime() - traceStart.getTime(),
+    attempts,
+    retries,
+    totalPromptTokens: sumOrNull(attempts.map((a) => a.promptTokens)),
+    totalCandidatesTokens: sumOrNull(attempts.map((a) => a.candidatesTokens)),
+    totalTokens: sumOrNull(attempts.map((a) => a.totalTokens)),
+    queries,
+    groundingChunkCount: lastSignals.groundingChunkCount,
+    sourceCount: sources.length,
+    searched,
+    confidence,
+    verdict,
+  };
+  console.log(
+    `[gemini] trace model=${model} searched=${searched} verdict=${verdict} ` +
+      `attempts=${attempts.length} queries=${queries.length} chunks=${lastSignals.groundingChunkCount} ` +
+      `sources=${sources.length} confidence=${confidence} durationMs=${trace.durationMs}`,
+  );
+  console.log(`[gemini] trace detail ${JSON.stringify(trace)}`);
   return {
     actividades,
     total: validated.total ?? actividades.length,
@@ -460,5 +657,7 @@ export async function buscarActividadesConGemini(
     warnings,
     raw: validated,
     sources,
+    searched,
+    trace,
   };
 }

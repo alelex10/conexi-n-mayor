@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Braces,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Cpu,
   ExternalLink,
@@ -25,6 +26,11 @@ import { formatearFecha } from "@/data/actividades";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -140,6 +146,43 @@ type GroqActividadUI = {
   warnings?: string[];
 };
 
+type BuscarResultTraceAttempt = {
+  attempt: number;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  systemPrompt: string;
+  userPrompt: string;
+  finishReason: string | null;
+  promptTokens: number | null;
+  candidatesTokens: number | null;
+  totalTokens: number | null;
+  webSearchQueries: string[];
+  groundingChunkCount: number;
+  sourceCount: number;
+  searched: boolean;
+  backoffMs: number | null;
+  error?: string;
+};
+
+type BuscarResultTrace = {
+  model: string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  attempts: BuscarResultTraceAttempt[];
+  retries: { attempt: number; backoffMs: number; reason: string }[];
+  totalPromptTokens: number | null;
+  totalCandidatesTokens: number | null;
+  totalTokens: number | null;
+  queries: string[];
+  groundingChunkCount: number;
+  sourceCount: number;
+  searched: boolean;
+  confidence: number;
+  verdict: "grounded" | "memory";
+};
+
 type BuscarResult = {
   status: "needs_review" | "ok";
   actividades: GroqActividadUI[];
@@ -151,6 +194,8 @@ type BuscarResult = {
   needsReview: boolean;
   raw: unknown;
   sources?: { title: string; url: string }[];
+  searched?: boolean;
+  trace?: BuscarResultTrace;
 };
 
 type Proveedor = AIProviderName;
@@ -1034,6 +1079,96 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                 {JSON.stringify(result.raw, null, 2)}
               </pre>
             </details>
+
+            {proveedor === "gemini" && result.trace && (
+              <Collapsible className="rounded-lg border bg-muted/20 p-3">
+                <CollapsibleTrigger className="flex w-full cursor-pointer list-none items-center gap-2 text-left text-sm font-bold">
+                  <Cpu className="size-4 text-[#1E6CB4]" aria-hidden />
+                  Ver proceso interno
+                  <ChevronDown className="size-4 text-muted-foreground" aria-hidden />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3 space-y-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge
+                      className={
+                        result.trace.verdict === "grounded"
+                          ? "bg-green-600 text-white border-transparent"
+                          : "bg-amber-500 text-white border-transparent"
+                      }
+                    >
+                      {result.trace.verdict === "grounded"
+                        ? "grounded (verificado en web)"
+                        : "memory (sin fuentes web)"}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      searched: {result.trace.searched ? "sí" : "no"}
+                    </Badge>
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {result.trace.model}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {result.trace.durationMs} ms · confidence{" "}
+                      {result.trace.confidence.toFixed(2)}
+                    </span>
+                  </div>
+                  <ol className="space-y-2">
+                    {result.trace.attempts.map((a) => (
+                      <li key={a.attempt} className="rounded-lg bg-white p-3 text-sm">
+                        <p className="font-bold">
+                          Intento {a.attempt} · {a.durationMs} ms
+                          {a.finishReason ? ` · finish: ${a.finishReason}` : ""}
+                          {a.backoffMs ? ` · backoff previo: ${a.backoffMs} ms` : ""}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          tokens in/out/total: {a.promptTokens ?? "—"}/
+                          {a.candidatesTokens ?? "—"}/{a.totalTokens ?? "—"} ·
+                          chunks: {a.groundingChunkCount} · fuentes: {a.sourceCount} ·
+                          buscó: {a.searched ? "sí" : "no"}
+                        </p>
+                        {a.webSearchQueries.length > 0 ? (
+                          <ul className="mt-1 list-disc pl-5 text-xs">
+                            {a.webSearchQueries.map((q) => (
+                              <li key={q} className="break-words">
+                                “{q}”
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-1 text-xs text-amber-700">
+                            Sin queries de búsqueda en este intento.
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                  {result.trace.retries.length > 0 && (
+                    <div className="rounded-lg bg-white p-3 text-sm">
+                      <p className="font-bold">Reintentos / backoffs</p>
+                      <ul className="mt-1 list-disc pl-5 text-xs text-muted-foreground">
+                        {result.trace.retries.map((r, i) => (
+                          <li key={i}>
+                            intento {r.attempt} · backoff {r.backoffMs} ms · {r.reason}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="rounded-lg bg-white p-3 text-sm">
+                    <p className="font-bold">
+                      Tokens totales: in {result.trace.totalPromptTokens ?? "—"} · out{" "}
+                      {result.trace.totalCandidatesTokens ?? "—"} · total{" "}
+                      {result.trace.totalTokens ?? "—"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Queries totales: {result.trace.queries.length} · chunks finales:{" "}
+                      {result.trace.groundingChunkCount} · fuentes:{" "}
+                      {result.trace.sourceCount} · {result.trace.startedAt} →{" "}
+                      {result.trace.endedAt}
+                    </p>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
             <p className="text-xs text-muted-foreground">
               HITL: confidence &lt; 0.85 se guarda best-effort en{" "}

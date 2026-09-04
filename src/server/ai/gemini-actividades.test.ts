@@ -7,11 +7,14 @@ import {
   buscarActividadesConGemini,
   DEFAULT_GEMINI_MODEL,
   extractGroundedSources,
+  extractGroundingSignals,
   extractJsonObject,
   getGeminiClient,
+  hasSearchedResponse,
   isValidGeminiModel,
   normalizeFechaValue,
   resolveGeminiModel,
+  truncatePromptForTrace,
   UNGROUNDED_CONFIDENCE_CAP,
 } from "./gemini-actividades";
 import { isValidProvider } from "./providers";
@@ -144,6 +147,44 @@ describe("extractGroundedSources (pure helper, no network)", () => {
     expect(extractGroundedSources({ candidates: [] })).toEqual([]);
     expect(extractGroundedSources({ candidates: [{}] })).toEqual([]);
     expect(extractGroundedSources(null)).toEqual([]);
+  });
+});
+
+describe("extractGroundingSignals / hasSearchedResponse (pure helpers, no network)", () => {
+  it("detects search via webSearchQueries even with zero chunks", () => {
+    const signals = extractGroundingSignals({
+      candidates: [{ groundingMetadata: { webSearchQueries: ["talleres Lo Prado"] } }],
+    });
+    expect(signals.webSearchQueries).toEqual(["talleres Lo Prado"]);
+    expect(signals.groundingChunkCount).toBe(0);
+    expect(signals.searched).toBe(true);
+    expect(hasSearchedResponse({ candidates: [{ groundingMetadata: { webSearchQueries: ["q"] } }] })).toBe(true);
+  });
+
+  it("detects search via searchEntryPoint.renderedContent", () => {
+    expect(
+      hasSearchedResponse({
+        candidates: [
+          { groundingMetadata: { searchEntryPoint: { renderedContent: "<div>search</div>" } } },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("detects search via grounding chunks and reports false for memory-only", () => {
+    expect(
+      hasSearchedResponse({
+        candidates: [{ groundingMetadata: { groundingChunks: [{ web: { uri: "https://a.cl" } }] } }],
+      }),
+    ).toBe(true);
+    expect(hasSearchedResponse({ candidates: [{}] })).toBe(false);
+    expect(hasSearchedResponse({})).toBe(false);
+    expect(hasSearchedResponse(null)).toBe(false);
+  });
+
+  it("truncatePromptForTrace caps at 2000 chars", () => {
+    expect(truncatePromptForTrace("a".repeat(2500)).length).toBe(2000);
+    expect(truncatePromptForTrace("short")).toBe("short");
   });
 });
 
@@ -368,5 +409,89 @@ describe("buscarActividadesConGemini grounding (mocked client)", () => {
     await expect(buscarActividadesConGemini({ ubicacion: "Lo Prado, Santiago" })).rejects.toThrow(
       /\[gemini\].*retry/i,
     );
+  });
+
+  it("forces search via MUST instructions and exposes searched:true with a full trace", async () => {
+    generateContentMock.mockResolvedValueOnce({
+      text: validActivityJson(),
+      candidates: [
+        {
+          finishReason: "STOP",
+          groundingMetadata: {
+            webSearchQueries: ["talleres adultos mayores Lo Prado"],
+            searchEntryPoint: { renderedContent: "<div>search results</div>" },
+            groundingChunks: [{ web: { uri: "https://example.cl/a", title: "Example A" } }],
+          },
+        },
+      ],
+      usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 50, totalTokenCount: 150 },
+    });
+
+    const result = await buscarActividadesConGemini({ ubicacion: "Lo Prado, Santiago" });
+
+    // Prompt-level forcing: no toolConfig force exists for googleSearch, so the
+    // MUST instruction in the user contents is the enforcement mechanism.
+    const contents = String(generateContentMock.mock.calls[0]?.[0]?.contents);
+    expect(contents).toMatch(/MUST use the Google Search tool/i);
+    expect(result.searched).toBe(true);
+    expect(result.trace?.searched).toBe(true);
+    expect(result.trace?.verdict).toBe("grounded");
+    expect(result.trace?.model).toBe("gemini-2.5-flash");
+    expect(result.trace?.queries).toEqual(["talleres adultos mayores Lo Prado"]);
+    expect(result.trace?.attempts).toHaveLength(1);
+    const attempt = result.trace?.attempts[0];
+    expect(attempt?.finishReason).toBe("STOP");
+    expect(attempt?.promptTokens).toBe(100);
+    expect(attempt?.candidatesTokens).toBe(50);
+    expect(attempt?.totalTokens).toBe(150);
+    expect(attempt?.groundingChunkCount).toBe(1);
+    expect(attempt?.sourceCount).toBe(1);
+    expect(attempt?.searched).toBe(true);
+    expect(result.trace?.totalPromptTokens).toBe(100);
+    expect(result.trace?.totalTokens).toBe(150);
+    expect(result.trace?.groundingChunkCount).toBe(1);
+    expect(result.trace?.sourceCount).toBe(1);
+    expect(result.trace?.confidence).toBe(result.confidence);
+    expect(result.trace?.retries).toEqual([]);
+    // Prompts travel truncated (<=2000 chars each).
+    expect(attempt?.systemPrompt.length).toBeLessThanOrEqual(2000);
+    expect(attempt?.userPrompt.length).toBeLessThanOrEqual(2000);
+    expect(typeof result.trace?.startedAt).toBe("string");
+    expect(typeof result.trace?.durationMs).toBe("number");
+  });
+
+  it("exposes searched:false with a memory verdict when the model never searches", async () => {
+    generateContentMock.mockResolvedValue({ text: validActivityJson(), candidates: [{}] });
+
+    const result = await buscarActividadesConGemini({ ubicacion: "Lo Prado, Santiago" });
+
+    expect(generateContentMock).toHaveBeenCalledTimes(2);
+    expect(result.searched).toBe(false);
+    expect(result.trace?.searched).toBe(false);
+    expect(result.trace?.verdict).toBe("memory");
+    expect(result.trace?.queries).toEqual([]);
+    expect(result.trace?.attempts).toHaveLength(2);
+    expect(result.trace?.attempts.every((a) => a.searched === false)).toBe(true);
+  });
+
+  it("distinguishes searched-without-results: searched:true but memory verdict", async () => {
+    generateContentMock.mockResolvedValueOnce({ text: validActivityJson(), candidates: [{}] });
+    generateContentMock.mockResolvedValueOnce({
+      text: validActivityJson(),
+      candidates: [{ groundingMetadata: { webSearchQueries: ["actividades Lo Prado"] } }],
+    });
+
+    const result = await buscarActividadesConGemini({ ubicacion: "Lo Prado, Santiago" });
+
+    expect(generateContentMock).toHaveBeenCalledTimes(2);
+    // A search ran (queries present) but returned zero usable chunks.
+    expect(result.searched).toBe(true);
+    expect(result.trace?.searched).toBe(true);
+    expect(result.trace?.queries).toEqual(["actividades Lo Prado"]);
+    // No sources back the answer, so the verdict stays memory and the
+    // confidence cap keeps it below the HITL gate.
+    expect(result.trace?.verdict).toBe("memory");
+    expect(result.sources).toEqual([]);
+    expect(result.confidence).toBeLessThan(0.85);
   });
 });
