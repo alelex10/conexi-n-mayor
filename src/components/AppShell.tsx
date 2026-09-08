@@ -6,9 +6,13 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between bg-[#1E6CB4] px-4 py-3 shadow-sm">
       <div className="flex items-center gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#FFECB3] shadow-sm ring-2 ring-white/15">
-          <Users className="size-6 text-[#5D4037]" aria-hidden />
-        </div>
+        <img
+          src="/logo_adulto.png"
+          alt="Logo Ciudad Viva Mayor"
+          className="size-11 shrink-0 rounded-full bg-white object-cover shadow-sm ring-2 ring-white/15"
+          width={44}
+          height={44}
+        />
         <span className="text-xl font-extrabold leading-none tracking-tight text-white">
           Ciudad Viva Mayor
         </span>
