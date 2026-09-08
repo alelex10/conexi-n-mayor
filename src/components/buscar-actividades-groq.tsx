@@ -458,14 +458,14 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-2xl">
           <Cpu className="size-6 text-[#1E6CB4]" aria-hidden />
-          Buscar actividades — Groq (búsqueda por ubicación)
+          Buscar actividades — {esLovable ? "Lovable AI" : "Groq"} (búsqueda por ubicación)
         </CardTitle>
         <CardDescription className="text-base">
-          Buscá actividades reales en la web cerca de una ubicación usando <strong>Groq</strong>{" "}
-          (simula búsqueda web vía LLM — sin Live Search nativo). Sin autenticación — solo para MVP.
-          Patrón replicado de Groq vision (afiches) pero en dominio <em>búsqueda por ubicación</em>{" "}
-          (simulada vía prompt).
+          Buscá actividades cerca de una ubicación con el proveedor que elijas:{" "}
+          <strong>Lovable AI</strong> o <strong>Groq</strong> (simulan búsqueda web vía LLM). Sin
+          autenticación — solo para MVP.
         </CardDescription>
+
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Proveedor + Modelo */}
