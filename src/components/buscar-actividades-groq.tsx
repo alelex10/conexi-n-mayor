@@ -519,7 +519,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                   <Badge variant={source === "groq" ? "default" : "secondary"} className="text-xs">
                     {source === "groq" ? "vía Groq API" : "lista local"}
                   </Badge>
-                  {hasGroqKey === false && (
+                  {!esLovable && hasGroqKey === false && (
                     <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
                       Sin GROQ_API_KEY — lista estática
                     </Badge>
@@ -719,7 +719,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               <Clock3 className="size-4" aria-hidden />
               {elapsedMs} ms · modelo:{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                {modeloSeleccionado}
+                {modeloActual}
               </code>
             </span>
           )}
@@ -731,7 +731,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
           )}
         </div>
 
-        {hasGroqKey === false && (
+        {!esLovable && hasGroqKey === false && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-snug text-amber-900">
             <p className="flex items-center gap-2 font-bold">
               <AlertTriangle className="size-4 text-amber-600" aria-hidden />
