@@ -468,25 +468,68 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Modelo */}
+        {/* Proveedor + Modelo */}
         <div className="space-y-3 rounded-xl border-2 border-border bg-muted/30 p-4">
+          <div className="space-y-2">
+            <Label className="text-base font-bold">Proveedor de IA</Label>
+            <div className="flex flex-wrap gap-2">
+              {(["lovable", "groq"] as const).map((p) => (
+                <Button
+                  key={p}
+                  type="button"
+                  variant={proveedor === p ? "default" : "outline"}
+                  onClick={() => setProveedor(p)}
+                  aria-pressed={proveedor === p}
+                  className="min-h-12 min-w-32 text-base"
+                >
+                  {p === "lovable" ? "Lovable AI" : "Groq"}
+                </Button>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {esLovable
+                ? "Lovable AI usa los créditos del proyecto — no requiere clave externa."
+                : "Groq usa GROQ_API_KEY configurada en el servidor."}
+            </p>
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Label htmlFor="modelo-groq" className="text-base font-bold">
-              Modelo Groq
+              {esLovable ? "Modelo Lovable AI" : "Modelo Groq"}
             </Label>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={source === "groq" ? "default" : "secondary"} className="text-xs">
-                {source === "groq" ? "vía Groq API" : "lista local"}
-              </Badge>
-              {hasGroqKey === false && (
-                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
-                  Sin GROQ_API_KEY — lista estática
-                </Badge>
-              )}
-              {hasGroqKey === true && (
-                <Badge className="bg-green-600 text-white border-transparent">
-                  GROQ_API_KEY OK
-                </Badge>
+              {esLovable ? (
+                <>
+                  <Badge variant="secondary" className="text-xs">
+                    lista curada
+                  </Badge>
+                  {hasLovableKey === false && (
+                    <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                      Sin LOVABLE_API_KEY
+                    </Badge>
+                  )}
+                  {hasLovableKey === true && (
+                    <Badge className="bg-green-600 text-white border-transparent">
+                      LOVABLE_API_KEY OK
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Badge variant={source === "groq" ? "default" : "secondary"} className="text-xs">
+                    {source === "groq" ? "vía Groq API" : "lista local"}
+                  </Badge>
+                  {hasGroqKey === false && (
+                    <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                      Sin GROQ_API_KEY — lista estática
+                    </Badge>
+                  )}
+                  {hasGroqKey === true && (
+                    <Badge className="bg-green-600 text-white border-transparent">
+                      GROQ_API_KEY OK
+                    </Badge>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -496,7 +539,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               <Loader2 className="size-4 animate-spin" aria-hidden /> Cargando modelos…
             </div>
           ) : (
-            <Select value={modeloSeleccionado} onValueChange={setModeloSeleccionado}>
+            <Select value={modeloActual} onValueChange={setModeloActual}>
               <SelectTrigger
                 id="modelo-groq"
                 className="min-h-12 w-full bg-white text-left text-base"
@@ -504,7 +547,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                 <SelectValue placeholder="Elegí un modelo" />
               </SelectTrigger>
               <SelectContent>
-                {modelos.map((m) => (
+                {modelosActuales.map((m) => (
                   <SelectItem key={m.id} value={m.id} className="py-2">
                     <span className="flex flex-col items-start gap-1">
                       <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
@@ -530,6 +573,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               </SelectContent>
             </Select>
           )}
+
 
           {selectedMeta && (
             <div className="grid gap-2 rounded-lg bg-white p-3 text-sm leading-snug sm:grid-cols-2">
