@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Database, FlaskConical, Home, Phone, Settings, Users } from "lucide-react";
+import { Database, FlaskConical, Home, Phone, Settings } from "lucide-react";
 
 export function AppHeader() {
   return (
@@ -74,7 +74,7 @@ export function AppFooter() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
+    <div className="flex min-h-dvh flex-col bg-transparent">
       <AppHeader />
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">{children}</main>
       <AppFooter />
