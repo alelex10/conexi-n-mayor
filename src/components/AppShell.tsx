@@ -9,9 +9,9 @@ export function AppHeader() {
         <img
           src="/logo_adulto.png"
           alt="Logo Ciudad Viva Mayor"
-          className="size-11 shrink-0 rounded-full bg-white object-cover shadow-sm ring-2 ring-white/15"
-          width={44}
-          height={44}
+          className="size-[53px] shrink-0 rounded-full bg-white object-cover shadow-sm ring-2 ring-white/15"
+          width={53}
+          height={53}
         />
         <span className="text-xl font-extrabold leading-none tracking-tight text-white">
           Ciudad Viva Mayor
