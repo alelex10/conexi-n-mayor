@@ -1,14 +1,18 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Database, FlaskConical, Home, Phone, Settings, Users } from "lucide-react";
+import { Database, FlaskConical, Home, Phone, Settings } from "lucide-react";
 
 export function AppHeader() {
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between bg-[#1E6CB4] px-4 py-3 shadow-sm">
       <div className="flex items-center gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#FFECB3] shadow-sm ring-2 ring-white/15">
-          <Users className="size-6 text-[#5D4037]" aria-hidden />
-        </div>
+        <img
+          src="/logo_adulto.png"
+          alt="Logo Ciudad Viva Mayor"
+          className="size-[53px] shrink-0 rounded-full bg-white object-cover shadow-sm ring-2 ring-white/15"
+          width={53}
+          height={53}
+        />
         <span className="text-xl font-extrabold leading-none tracking-tight text-white">
           Ciudad Viva Mayor
         </span>
@@ -70,7 +74,7 @@ export function AppFooter() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
+    <div className="flex min-h-dvh flex-col bg-transparent">
       <AppHeader />
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">{children}</main>
       <AppFooter />

@@ -554,20 +554,20 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-2xl">
           <Cpu className="size-6 text-[#1E6CB4]" aria-hidden />
-          Buscar actividades — AI (búsqueda por ubicación)
+          Buscar actividades — {nombreProveedor} (búsqueda por ubicación)
         </CardTitle>
         <CardDescription className="text-base">
-          Buscá actividades reales en la web cerca de una ubicación eligiendo el{" "}
-          <strong>proveedor</strong> (Groq, Lovable o Gemini). Sin autenticación — solo para MVP.
-          Patrón replicado de Groq vision (afiches) pero en dominio <em>búsqueda por ubicación</em>{" "}
-          (simulada vía prompt).
+          Buscá actividades cerca de una ubicación con el proveedor que elijas:{" "}
+          <strong>Lovable AI</strong>, <strong>Groq</strong> o <strong>Gemini</strong> (simulan
+          búsqueda web vía LLM). Sin autenticación — solo para MVP.
         </CardDescription>
+
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Proveedor + modelo */}
         <div className="space-y-3 rounded-xl border-2 border-border bg-muted/30 p-4">
           <div className="space-y-2">
-            <Label className="text-base font-bold">Proveedor</Label>
+            <Label className="text-base font-bold">Proveedor de IA</Label>
             <Tabs
               value={proveedor}
               onValueChange={(v) => setProveedor(v as Proveedor)}
@@ -579,6 +579,13 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                 <TabsTrigger value="gemini">Gemini</TabsTrigger>
               </TabsList>
             </Tabs>
+            <p className="text-sm text-muted-foreground">
+              {esLovable
+                ? "Lovable AI usa los créditos del proyecto — no requiere clave externa."
+                : esGemini
+                  ? "Gemini usa GEMINI_API_KEY configurada en el servidor (free tier disponible)."
+                  : "Groq usa GROQ_API_KEY configurada en el servidor."}
+            </p>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Label htmlFor="modelo-groq" className="text-base font-bold">
@@ -662,6 +669,7 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               </SelectContent>
             </Select>
           )}
+
 
           {selectedMeta && (
             <div className="grid gap-2 rounded-lg bg-white p-3 text-sm leading-snug sm:grid-cols-2">
