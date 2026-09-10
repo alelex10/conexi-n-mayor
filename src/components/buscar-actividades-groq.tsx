@@ -18,8 +18,11 @@ import {
   listarModelosGeminiFn,
   listarModelosGroqFn,
   listarModelosLovableFn,
+  listarModelosNvidiaFn,
+  listarModelosOpenRouterFn,
 } from "@/lib/groq-actividades.functions";
-import type { AIProviderName } from "@/server/ai/providers";
+import type { AIProviderNameExtended } from "@/lib/ai/providers";
+import { AI_PROVIDER_LABELS_EXTENDED } from "@/lib/ai/providers";
 import { getLocationStatusMessage, useDeviceLocation } from "@/hooks/use-device-location";
 
 import { formatearFecha } from "@/data/actividades";
@@ -117,6 +120,62 @@ const FALLBACK_GEMINI_MODELS: GroqModelUI[] = [
   },
 ];
 
+const FALLBACK_OPENROUTER_MODELS: GroqModelUI[] = [
+  {
+    id: "meta-llama/llama-3.3-70b-instruct:free",
+    label: "Llama 3.3 70B Instruct :free (OpenRouter)",
+    description:
+      "Free tier via OpenRouter — meta-llama/llama-3.3-70b-instruct:free, cost-optimized (700 tokens, plain JSON, no browser_search tool)",
+    contextWindow: 131072,
+    pricingIn: "$0 / 1M",
+    pricingOut: "$0 / 1M",
+    pricing: "$0 / $0 por 1M",
+    recommended: true,
+    vision: false,
+    supportsLiveSearch: false,
+  },
+  {
+    id: "qwen/qwen-3-32b:free",
+    label: "Qwen 3 32B :free (OpenRouter)",
+    description: "Free tier alternative — qwen/qwen-3-32b:free via OpenRouter",
+    contextWindow: 32768,
+    pricingIn: "$0 / 1M",
+    pricingOut: "$0 / 1M",
+    pricing: "$0 / $0 por 1M",
+    recommended: false,
+    vision: false,
+    supportsLiveSearch: false,
+  },
+];
+
+const FALLBACK_NVIDIA_MODELS: GroqModelUI[] = [
+  {
+    id: "meta/llama-3.3-70b-instruct",
+    label: "Llama 3.3 70B Instruct (NVIDIA)",
+    description:
+      "Hosted at integrate.api.nvidia.com — meta/llama-3.3-70b-instruct, cost-optimized (700 tokens, plain JSON)",
+    contextWindow: 131072,
+    pricingIn: null,
+    pricingOut: null,
+    pricing: "NVIDIA API (free tier available)",
+    recommended: true,
+    vision: false,
+    supportsLiveSearch: false,
+  },
+  {
+    id: "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+    label: "Nemotron Super 49B (NVIDIA)",
+    description: "NVIDIA Nemotron — reasoning-optimized variant hosted on NVIDIA API",
+    contextWindow: 131072,
+    pricingIn: null,
+    pricingOut: null,
+    pricing: "NVIDIA API",
+    recommended: false,
+    vision: false,
+    supportsLiveSearch: false,
+  },
+];
+
 const CATEGORIAS = [
   { value: "", label: "Todas" },
   { value: "taller", label: "Taller" },
@@ -198,7 +257,7 @@ type BuscarResult = {
   trace?: BuscarResultTrace;
 };
 
-type Proveedor = AIProviderName;
+type Proveedor = AIProviderNameExtended;
 
 export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" | "clean" }) {
   const isClean = variant === "clean";
@@ -211,6 +270,16 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
   const [modelosGemini, setModelosGemini] = useState<GroqModelUI[]>(FALLBACK_GEMINI_MODELS);
   const [modeloGemini, setModeloGemini] = useState<string>("gemini-2.5-flash");
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean | null>(null);
+  const [modelosOpenRouter, setModelosOpenRouter] = useState<GroqModelUI[]>(
+    FALLBACK_OPENROUTER_MODELS,
+  );
+  const [modeloOpenRouter, setModeloOpenRouter] = useState<string>(
+    FALLBACK_OPENROUTER_MODELS[0]!.id,
+  );
+  const [hasOpenRouterKey, setHasOpenRouterKey] = useState<boolean | null>(null);
+  const [modelosNvidia, setModelosNvidia] = useState<GroqModelUI[]>(FALLBACK_NVIDIA_MODELS);
+  const [modeloNvidia, setModeloNvidia] = useState<string>(FALLBACK_NVIDIA_MODELS[0]!.id);
+  const [hasNvidiaKey, setHasNvidiaKey] = useState<boolean | null>(null);
   const [source, setSource] = useState<"groq" | "static">("static");
   const [hasGroqKey, setHasGroqKey] = useState<boolean | null>(null);
   const [loadingModelos, setLoadingModelos] = useState(true);
@@ -296,6 +365,40 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
         }
       }
     })();
+    (async () => {
+      try {
+        const res = await listarModelosOpenRouterFn();
+        if (cancelled) return;
+        const list = res.models as unknown as GroqModelUI[];
+        setModelosOpenRouter(list.length > 0 ? list : FALLBACK_OPENROUTER_MODELS);
+        setHasOpenRouterKey(Boolean((res as unknown as { hasOpenRouterKey: boolean }).hasOpenRouterKey));
+        if (list.length > 0 && !list.some((m) => m.id === modeloOpenRouter)) {
+          setModeloOpenRouter((res.defaultModel as string) || list[0]!.id);
+        }
+      } catch {
+        if (!cancelled) {
+          setModelosOpenRouter(FALLBACK_OPENROUTER_MODELS);
+          setHasOpenRouterKey(false);
+        }
+      }
+    })();
+    (async () => {
+      try {
+        const res = await listarModelosNvidiaFn();
+        if (cancelled) return;
+        const list = res.models as unknown as GroqModelUI[];
+        setModelosNvidia(list.length > 0 ? list : FALLBACK_NVIDIA_MODELS);
+        setHasNvidiaKey(Boolean((res as unknown as { hasNvidiaKey: boolean }).hasNvidiaKey));
+        if (list.length > 0 && !list.some((m) => m.id === modeloNvidia)) {
+          setModeloNvidia((res.defaultModel as string) || list[0]!.id);
+        }
+      } catch {
+        if (!cancelled) {
+          setModelosNvidia(FALLBACK_NVIDIA_MODELS);
+          setHasNvidiaKey(false);
+        }
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -304,10 +407,36 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
 
   const esLovable = proveedor === "lovable";
   const esGemini = proveedor === "gemini";
-  const modelosActuales = esGemini ? modelosGemini : esLovable ? modelosLovable : modelos;
-  const modeloActual = esGemini ? modeloGemini : esLovable ? modeloLovable : modeloSeleccionado;
-  const setModeloActual = esGemini ? setModeloGemini : esLovable ? setModeloLovable : setModeloSeleccionado;
-  const nombreProveedor = esGemini ? "Gemini" : esLovable ? "Lovable" : "Groq";
+  const esOpenRouter = proveedor === "openrouter";
+  const esNvidia = proveedor === "nvidia";
+  const modelosActuales = esGemini
+    ? modelosGemini
+    : esLovable
+      ? modelosLovable
+      : esOpenRouter
+        ? modelosOpenRouter
+        : esNvidia
+          ? modelosNvidia
+          : modelos;
+  const modeloActual = esGemini
+    ? modeloGemini
+    : esLovable
+      ? modeloLovable
+      : esOpenRouter
+        ? modeloOpenRouter
+        : esNvidia
+          ? modeloNvidia
+          : modeloSeleccionado;
+  const setModeloActual = esGemini
+    ? setModeloGemini
+    : esLovable
+      ? setModeloLovable
+      : esOpenRouter
+        ? setModeloOpenRouter
+        : esNvidia
+          ? setModeloNvidia
+          : setModeloSeleccionado;
+  const nombreProveedor = AI_PROVIDER_LABELS_EXTENDED[proveedor] ?? "Groq";
 
   const handleBuscar = async () => {
     if (ubicacion.trim().length < 3) {
@@ -372,6 +501,14 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
       } else if (msg.includes("LOVABLE_API_KEY")) {
         setError(
           "Falta LOVABLE_API_KEY en el servidor (.env). Es una clave gestionada por Lovable AI Gateway.",
+        );
+      } else if (msg.includes("OPENROUTER_API_KEY")) {
+        setError(
+          "Falta OPENROUTER_API_KEY en el servidor (.env). Conseguí una en https://openrouter.ai/keys",
+        );
+      } else if (msg.includes("NVIDIA_API_KEY") || msg.includes("NVAPI_KEY")) {
+        setError(
+          "Falta NVIDIA_API_KEY (o NVAPI_KEY) en el servidor (.env). Conseguí una en https://build.nvidia.com/explore/discover",
         );
       } else {
         setError(msg);
@@ -558,8 +695,9 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
         </CardTitle>
         <CardDescription className="text-base">
           Buscá actividades cerca de una ubicación con el proveedor que elijas:{" "}
-          <strong>Lovable AI</strong>, <strong>Groq</strong> o <strong>Gemini</strong> (simulan
-          búsqueda web vía LLM). Sin autenticación — solo para MVP.
+          <strong>Groq</strong>, <strong>Lovable</strong>, <strong>Gemini</strong>,{" "}
+          <strong>OpenRouter</strong> o <strong>NVIDIA</strong> (simulan búsqueda web vía
+          LLM). Sin autenticación — solo para MVP.
         </CardDescription>
 
       </CardHeader>
@@ -573,10 +711,12 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               onValueChange={(v) => setProveedor(v as Proveedor)}
               className="w-full"
             >
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="groq">Groq</TabsTrigger>
                 <TabsTrigger value="lovable">Lovable</TabsTrigger>
                 <TabsTrigger value="gemini">Gemini</TabsTrigger>
+                <TabsTrigger value="openrouter">OpenRouter</TabsTrigger>
+                <TabsTrigger value="nvidia">NVIDIA</TabsTrigger>
               </TabsList>
             </Tabs>
             <p className="text-sm text-muted-foreground">
@@ -584,7 +724,11 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                 ? "Lovable AI usa los créditos del proyecto — no requiere clave externa."
                 : esGemini
                   ? "Gemini usa GEMINI_API_KEY configurada en el servidor (free tier disponible)."
-                  : "Groq usa GROQ_API_KEY configurada en el servidor."}
+                  : esOpenRouter
+                    ? "OpenRouter usa OPENROUTER_API_KEY configurada en el servidor (free tier :free disponible)."
+                    : esNvidia
+                      ? "NVIDIA usa NVIDIA_API_KEY / NVAPI_KEY configurada en el servidor (integrate.api.nvidia.com)."
+                      : "Groq usa GROQ_API_KEY configurada en el servidor."}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -625,6 +769,26 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
               {proveedor === "gemini" && hasGeminiKey === true && (
                 <Badge className="bg-green-600 text-white border-transparent">
                   GEMINI_API_KEY OK
+                </Badge>
+              )}
+              {proveedor === "openrouter" && hasOpenRouterKey === false && (
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                  Sin OPENROUTER_API_KEY — lista estática
+                </Badge>
+              )}
+              {proveedor === "openrouter" && hasOpenRouterKey === true && (
+                <Badge className="bg-green-600 text-white border-transparent">
+                  OPENROUTER_API_KEY OK
+                </Badge>
+              )}
+              {proveedor === "nvidia" && hasNvidiaKey === false && (
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                  Sin NVIDIA_API_KEY — lista estática
+                </Badge>
+              )}
+              {proveedor === "nvidia" && hasNvidiaKey === true && (
+                <Badge className="bg-green-600 text-white border-transparent">
+                  NVIDIA_API_KEY OK
                 </Badge>
               )}
             </div>
@@ -866,6 +1030,53 @@ export function BuscarActividadesGroq({ variant = "full" }: { variant?: "full" |
                 className="font-bold underline"
               >
                 aistudio.google.com/apikey
+              </a>
+              ). Mientras tanto el selector funciona y la lista es estática, pero la búsqueda dará
+              error hasta tener la key.
+            </p>
+          </div>
+        )}
+
+        {proveedor === "openrouter" && hasOpenRouterKey === false && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-snug text-amber-900">
+            <p className="flex items-center gap-2 font-bold">
+              <AlertTriangle className="size-4 text-amber-600" aria-hidden />
+              OPENROUTER_API_KEY no configurada en el servidor
+            </p>
+            <p className="mt-1">
+              Configurá <code className="rounded bg-white px-1">OPENROUTER_API_KEY</code> en{" "}
+              <code className="rounded bg-white px-1">.env</code> (conseguí una en{" "}
+              <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold underline"
+              >
+                openrouter.ai/keys
+              </a>
+              ). Mientras tanto el selector funciona y la lista es estática, pero la búsqueda dará
+              error hasta tener la key.
+            </p>
+          </div>
+        )}
+
+        {proveedor === "nvidia" && hasNvidiaKey === false && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-snug text-amber-900">
+            <p className="flex items-center gap-2 font-bold">
+              <AlertTriangle className="size-4 text-amber-600" aria-hidden />
+              NVIDIA_API_KEY no configurada en el servidor
+            </p>
+            <p className="mt-1">
+              Configurá <code className="rounded bg-white px-1">NVIDIA_API_KEY</code> (o{" "}
+              <code className="rounded bg-white px-1">NVAPI_KEY</code>) en{" "}
+              <code className="rounded bg-white px-1">.env</code> (conseguí una en{" "}
+              <a
+                href="https://build.nvidia.com/explore/discover"
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold underline"
+              >
+                build.nvidia.com/explore/discover
               </a>
               ). Mientras tanto el selector funciona y la lista es estática, pero la búsqueda dará
               error hasta tener la key.

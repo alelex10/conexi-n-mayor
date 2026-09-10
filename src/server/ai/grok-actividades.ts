@@ -1,4 +1,4 @@
 // Deprecated alias: Grok (xAI) → Groq migration
-// Este archivo es alias backwards compat. La implementación real está en ./groq-actividades.ts
-// Mantener para no romper imports antiguos hasta que se migren todos los consumers.
-export * from "./groq-actividades";
+// Canonical module is now ./groq/search.ts (re-exported via ./groq-actividades.ts shim).
+// Keep this alias so legacy `grok-actividades` imports keep working.
+export * from "./groq/search";

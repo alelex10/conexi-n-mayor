@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import type { AIProviderName } from "@/server/ai/providers";
+import type { AIProviderName, AIProviderNameExtended } from "@/lib/ai/providers";
 
 /**
  * Capa RPC client-importable para Groq búsqueda actividades por ubicación.
@@ -68,6 +68,85 @@ export const listarModelosGeminiFn = createServerFn({ method: "GET" }).handler(a
   };
 });
 
+/**
+ * Público — modelos disponibles del proveedor OpenRouter (lista estática curada, v2 cost-optimized).
+ * No intenta fetch remoto — OpenRouter /v1/models requiere auth y varía mucho.
+ */
+export const listarModelosOpenRouterFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { DEFAULT_OPENROUTER_MODEL } = await import("@/server/ai/openrouter-v2/search");
+  return {
+    models: [
+      {
+        id: DEFAULT_OPENROUTER_MODEL,
+        label: "Llama 3.3 70B Instruct :free (OpenRouter)",
+        description: "Free tier via OpenRouter — meta-llama/llama-3.3-70b-instruct:free, cost-optimized (700 tokens, plain JSON, no browser_search tool)",
+        contextWindow: 131072,
+        maxImages: null,
+        speed: null,
+        pricingIn: "$0 / 1M",
+        pricingOut: "$0 / 1M",
+        recommended: true,
+        vision: false,
+      },
+      {
+        id: "qwen/qwen-3-32b:free",
+        label: "Qwen 3 32B :free (OpenRouter)",
+        description: "Free tier alternative — qwen/qwen-3-32b:free via OpenRouter",
+        contextWindow: 32768,
+        maxImages: null,
+        speed: null,
+        pricingIn: "$0 / 1M",
+        pricingOut: "$0 / 1M",
+        recommended: false,
+        vision: false,
+      },
+    ],
+    source: "static" as const,
+    fetchedAt: new Date().toISOString(),
+    defaultModel: DEFAULT_OPENROUTER_MODEL,
+    hasOpenRouterKey: Boolean(process.env["OPENROUTER_API_KEY"]),
+  };
+});
+
+/**
+ * Público — modelos disponibles del proveedor NVIDIA (lista estática curada, v2 cost-optimized).
+ */
+export const listarModelosNvidiaFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { DEFAULT_NVIDIA_MODEL } = await import("@/server/ai/nvidia-v2/search");
+  return {
+    models: [
+      {
+        id: DEFAULT_NVIDIA_MODEL,
+        label: "Llama 3.3 70B Instruct (NVIDIA)",
+        description: "Hosted at integrate.api.nvidia.com — meta/llama-3.3-70b-instruct, cost-optimized (700 tokens, plain JSON)",
+        contextWindow: 131072,
+        maxImages: null,
+        speed: null,
+        pricingIn: null,
+        pricingOut: null,
+        recommended: true,
+        vision: false,
+      },
+      {
+        id: "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        label: "Nemotron Super 49B (NVIDIA)",
+        description: "NVIDIA Nemotron — reasoning-optimized variant hosted on NVIDIA API",
+        contextWindow: 131072,
+        maxImages: null,
+        speed: null,
+        pricingIn: null,
+        pricingOut: null,
+        recommended: false,
+        vision: false,
+      },
+    ],
+    source: "static" as const,
+    fetchedAt: new Date().toISOString(),
+    defaultModel: DEFAULT_NVIDIA_MODEL,
+    hasNvidiaKey: Boolean(process.env["NVIDIA_API_KEY"] ?? process.env["NVAPI_KEY"]),
+  };
+});
+
 export const buscarInputSchema = z.object({
   ubicacion: z.string().trim().min(3, "ubicacion debe tener al menos 3 caracteres").max(200),
   radioMetros: z.number().int().positive().optional(),
@@ -77,21 +156,27 @@ export const buscarInputSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "fechaDesde debe ser YYYY-MM-DD")
     .optional(),
   model: z.string().trim().min(1).optional(),
-  proveedor: z.enum(["groq", "lovable", "gemini"]).optional(),
+  // Extended for side-by-side testing: groq/lovable/gemini remain primary UI tabs;
+  // openrouter/nvidia are API-only via direct RPC or future tab extension (see providers.ts note).
+  proveedor: z.enum(["groq", "lovable", "gemini", "openrouter", "nvidia"]).optional(),
   latitud: z.number().min(-90).max(90).optional(),
   longitud: z.number().min(-180).max(180).optional(),
   locationLabel: z.string().trim().max(200).optional(),
 });
 
 /**
- * Busca actividades por ubicación usando Groq, Lovable AI o Gemini (según `proveedor`) + HITL gate.
+ * Busca actividades por ubicación usando Groq v2 / Gemini v2 / Lovable (según `proveedor`) + HITL gate.
+ * - Pretty views (/, /groq, /comparar) call this RPC unchanged; wiring now targets v2 impls internally
+ *   (groq -> groq-v2/search with browser_search low+700, 2 domains; gemini -> gemini-v2/search mirror).
+ *   Legacy src/server/ai/groq/search and gemini/search remain as shims but are no longer called from views.
+ * - Lovable keeps legacy lovable/search (fallback; could map to groq-v2 if desired — see note below).
  * - model es opcional desde el cliente; validado server-side
  * - confidence < 0.85 persiste best-effort en busquedas_groq_pendientes (feature-flag: si tabla no existe, warn y no rompe)
  */
 export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => buscarInputSchema.parse(data))
   .handler(async ({ data }) => {
-    const proveedor: AIProviderName = data.proveedor ?? "groq";
+    const proveedor: AIProviderNameExtended = (data.proveedor as AIProviderNameExtended | undefined) ?? "groq";
     const { DEFAULT_GROQ_MODEL } = await import("@/server/ai/models");
 
     const groqInput: {
@@ -117,16 +202,37 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
     let result;
     let defaultModel = DEFAULT_GROQ_MODEL;
     if (proveedor === "lovable") {
-      const { buscarActividadesConLovable } = await import("@/server/ai/lovable-actividades");
+      // Lovable keeps legacy path (stable). To map to v2, replace with:
+      // const { buscarActividadesConGroq } = await import("@/server/ai/groq-v2/search");
+      // result = await buscarActividadesConGroq(groqInput);
+      const { buscarActividadesConLovable } = await import("@/server/ai/lovable/search");
       result = await buscarActividadesConLovable(groqInput);
     } else if (proveedor === "gemini") {
+      // Pretty views now target gemini-v2 (googleSearch, low+700, 2 domains, 700 tokens)
+      // Legacy src/server/ai/gemini/search remains as shim but is no longer called from views.
       const { buscarActividadesConGemini, DEFAULT_GEMINI_MODEL } = await import(
-        "@/server/ai/gemini-actividades"
+        "@/server/ai/gemini-v2/search"
       );
       result = await buscarActividadesConGemini(groqInput);
       defaultModel = DEFAULT_GEMINI_MODEL;
+    } else if (proveedor === "openrouter") {
+      // OpenRouter v2 — OpenAI-compatible via https://openrouter.ai/api/v1, cost-optimized (700 tokens, plain JSON, no browser_search tool)
+      const { buscarActividadesConOpenRouter, DEFAULT_OPENROUTER_MODEL } = await import(
+        "@/server/ai/openrouter-v2/search"
+      );
+      result = await buscarActividadesConOpenRouter(groqInput);
+      defaultModel = DEFAULT_OPENROUTER_MODEL;
+    } else if (proveedor === "nvidia") {
+      // NVIDIA v2 — OpenAI-compatible via https://integrate.api.nvidia.com/v1, cost-optimized (700 tokens, plain JSON)
+      const { buscarActividadesConNvidia, DEFAULT_NVIDIA_MODEL } = await import(
+        "@/server/ai/nvidia-v2/search"
+      );
+      result = await buscarActividadesConNvidia(groqInput);
+      defaultModel = DEFAULT_NVIDIA_MODEL;
     } else {
-      const { buscarActividadesConGroq } = await import("@/server/ai/groq-actividades");
+      // Pretty views now target groq-v2 (browser_search, low+700, 2 domains, textual JSON only)
+      // Legacy src/server/ai/groq/search remains as shim but is no longer called from views.
+      const { buscarActividadesConGroq } = await import("@/server/ai/groq-v2/search");
       result = await buscarActividadesConGroq(groqInput);
     }
 
@@ -139,7 +245,11 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
         ? process.env["GEMINI_MODEL"]
         : proveedor === "lovable"
           ? undefined
-          : process.env["GROQ_MODEL"];
+          : proveedor === "openrouter"
+            ? process.env["OPENROUTER_MODEL"] ?? process.env["OPENROUTER_MODEL_OVERRIDE"]
+            : proveedor === "nvidia"
+              ? process.env["NVIDIA_MODEL"] ?? process.env["NVAPI_MODEL_OVERRIDE"] ?? process.env["NVIDIA_MODEL_OVERRIDE"]
+              : process.env["GROQ_MODEL"];
     const usedModel = result.usedModel || data.model?.trim() || envFallback || defaultModel;
 
 
