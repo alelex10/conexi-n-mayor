@@ -310,11 +310,3 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
       trace: result.trace,
     };
   });
-
-// Alias for convenience (optional)
-export const buscarActividadesGroq = buscarActividadesPorUbicacionFn;
-
-// Backwards compat aliases (grok → groq)
-export const listarModelosGrokFn = listarModelosGroqFn;
-export const buscarActividadesGrok = buscarActividadesPorUbicacionFn;
-export const buscarActividadesPorUbicacionGrokFn = buscarActividadesPorUbicacionFn;

@@ -474,17 +474,3 @@ export async function buscarConFallback(input: BuscarActividadesInput): Promise<
     throw error;
   }
 }
-
-// Aliases for backwards compatibility (grok → groq migration)
-// TODO: remove these aliases after PR #6 is merged and old imports are gone
-export const GrokActividadSchema = GroqActividadSchema;
-export const GrokBusquedaSchema = GroqBusquedaSchema;
-export type GrokActividad = GroqActividad;
-export type GrokBusquedaRaw = GroqBusquedaRaw;
-export type GrokBusquedaResult = GroqBusquedaResult;
-export const DEFAULT_GROK_MODEL = DEFAULT_GROQ_MODEL;
-export const getGrokClient = getGroqClient;
-export const resolveGrokModel = resolveGroqModel;
-export const buildGrokSystemPrompt = buildGroqSystemPrompt;
-export const buscarActividadesConGrok = buscarActividadesConGroq;
-export const isRetryableGrokError = isRetryableGroqError;

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Database, FlaskConical, Home, Phone, Settings } from "lucide-react";
+import { FlaskConical, Home, Phone, Settings } from "lucide-react";
 
 export function AppHeader() {
   return (
@@ -57,15 +57,6 @@ export function AppFooter() {
         >
           <Phone className="size-5 shrink-0" aria-hidden />
           <span>AYUDA DIRECTA</span>
-        </a>
-      </div>
-      <div className="mx-auto mt-3 flex max-w-2xl justify-center">
-        <a
-          href="/db"
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white/70 underline-offset-4 hover:text-white hover:underline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          <Database className="size-4 shrink-0" aria-hidden />
-          Ver datos en la base → /db
         </a>
       </div>
     </footer>

@@ -3,7 +3,7 @@
  *
  * Single source of truth for the provider union type so server handlers
  * (src/lib/groq-actividades.functions.ts) and UI
- * (src/components/buscar-actividades-groq.tsx) share exactly one definition.
+ * (src/components/buscar-actividades-ia.tsx) share exactly one definition.
  * Runtime-safe: no secrets, no SDK imports — safe to `import type` from client code.
  */
 
@@ -28,7 +28,7 @@ export function isValidProvider(value: unknown): value is AIProviderName {
 // their tabs remain working without migration. New providers are exposed via
 // the extended union below for side-by-side testing and future UI tabs.
 //
-// UI note: to surface openrouter/nvidia in src/components/buscar-actividades-groq.tsx,
+// UI note: to surface openrouter/nvidia in src/components/buscar-actividades-ia.tsx,
 // add TabsTrigger entries for "openrouter" and "nvidia" (grid-cols-5), extend
 // FALLBACK_*_MODELS with provider-specific model lists, and wire listarModelos*
 // handlers. The dispatcher in src/lib/groq-actividades.functions.ts already

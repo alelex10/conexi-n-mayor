@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, FlaskConical } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
-import { BuscarActividadesGroq } from "@/components/buscar-actividades-groq";
+import { BuscarActividadesIA } from "@/components/buscar-actividades-ia";
 import { Button } from "@/components/ui/button";
 
 // Alias backwards compat: /grok → mismo contenido que /groq (Grok xAI deprecado, ahora Groq)
@@ -47,7 +47,7 @@ function GrokAliasPage() {
           </p>
         </div>
 
-        <BuscarActividadesGroq />
+        <BuscarActividadesIA />
 
         <div className="rounded-xl border bg-muted/20 p-4 text-sm leading-snug">
           <p className="font-bold">Cómo probar local</p>

@@ -1,10 +1,13 @@
 /* eslint-disable prettier/prettier */
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, Bath, Car, Map, Phone, Bus } from "lucide-react";
+import { ArrowLeft, Bath, Car, Phone, Bus } from "lucide-react";
 
 import { obtenerActividad } from "@/lib/actividades.functions";
 import { RADIO_TAXIS, formatearDistancia, formatearFecha } from "@/data/actividades";
 import { AppShell } from "@/components/AppShell";
+import { GratuitoBadge } from "@/components/buscar-actividades/common/components/GratuitoBadge";
+import { MapsButton } from "@/components/buscar-actividades/common/components/MapsButton";
+import { SourceBadge } from "@/components/buscar-actividades/common/components/SourceBadge";
 
 export const Route = createFileRoute("/actividad/$id")({
   loader: async ({ params }) => {
@@ -89,20 +92,19 @@ function Detalle() {
       <p className="mt-2 text-lg font-medium text-muted-foreground">{actividad.categoria}</p>
 
       {actividad.fuente === "chilecultura" && (
-        <p className="mt-2 inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-sm font-bold text-[#EF6C00]">
-          Fuente: ChileCultura
-          {actividad.commune ? ` · Aprox. en ${actividad.commune}` : ""}
-        </p>
+        <SourceBadge showFuentePrefix commune={actividad.commune} as="p" className="mt-2" />
       )}
 
-      <p
-        className={`mt-4 inline-block rounded-lg px-4 py-2 text-xl font-bold ${
-          actividad.gratuito ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
-        }`}
-        aria-label={actividad.gratuito ? "Actividad gratuita" : `Actividad de pago ${actividad.precio}`}
-      >
-        {actividad.gratuito ? "Gratuito" : `De pago · ${actividad.precio}`}
-      </p>
+      <GratuitoBadge
+        gratuito={actividad.gratuito}
+        textoPago={`De pago · ${actividad.precio}`}
+        size="lg"
+        freeTone="primary"
+        className="mt-4"
+        ariaLabel={
+          actividad.gratuito ? "Actividad gratuita" : `Actividad de pago ${actividad.precio}`
+        }
+      />
 
       <div className="mt-6 rounded-2xl border-4 border-border bg-card p-5 text-xl text-card-foreground">
         <p>
@@ -153,14 +155,7 @@ function Detalle() {
         <span>{actividad.comoLlegar}</span>
       </p>
 
-      <a
-        href={mapsUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-4 flex min-h-16 items-center justify-center gap-3 rounded-xl bg-primary px-4 text-2xl font-bold text-primary-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <Map aria-hidden className="size-7" /> Abrir en Google Maps
-      </a>
+      <MapsButton url={mapsUrl} mode="directions" label="Abrir en Google Maps" />
 
       <h2 className="mt-8 text-2xl font-bold text-foreground">Pedir un auto</h2>
       <div className="mt-3 flex flex-col gap-3">

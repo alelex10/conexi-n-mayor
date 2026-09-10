@@ -28,7 +28,13 @@ import {
   type Actividad,
 } from "@/data/actividades";
 import { AppShell } from "@/components/AppShell";
-import { BuscarActividadesGroq } from "@/components/buscar-actividades-groq";
+import { BuscarActividadesIA } from "@/components/buscar-actividades-ia";
+import { CategoriaBadge } from "@/components/buscar-actividades/common/components/CategoriaBadge";
+import { GratuitoBadge } from "@/components/buscar-actividades/common/components/GratuitoBadge";
+import { SourceBadge } from "@/components/buscar-actividades/common/components/SourceBadge";
+import { EmptyState } from "@/components/buscar-actividades/common/components/EmptyState";
+import { FormError } from "@/components/common/FormError";
+import { ResultCount } from "@/components/common/ResultCount";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -126,7 +132,7 @@ function CiudadVivaMayor() {
       </h1>
 
       <div className="mt-2">
-        <BuscarActividadesGroq variant="clean" />
+        <BuscarActividadesIA variant="clean" />
       </div>
 
       <div className="mt-6 flex flex-col gap-4">
@@ -220,14 +226,7 @@ function CiudadVivaMayor() {
             Cargando actividades…
           </p>
         )}
-        {errorCarga && (
-          <p
-            role="alert"
-            className="mt-3 rounded-xl bg-destructive/10 p-3 text-lg font-bold text-destructive"
-          >
-            {errorCarga}
-          </p>
-        )}
+        {errorCarga && <FormError message={errorCarga} className="mt-3" />}
       </section>
 
       {/* Sección naranja - Lo más cercano — OCULTA temporal (MOSTRAR_LISTADO_HOME) */}
@@ -247,26 +246,27 @@ function CiudadVivaMayor() {
           </div>
 
           <div className="space-y-4 bg-[#FFF3E0] p-4">
-            <p className="text-center text-lg font-bold text-[#5D4037]" aria-live="polite">
+            <ResultCount>
               {ordenadas.length}{" "}
               {ordenadas.length === 1 ? "actividad cercana" : "actividades cercanas"} a{" "}
               {formatearDistancia(radio)}
-            </p>
+            </ResultCount>
 
             {ordenadas.length === 0 && !cargando && (
-              <div className="rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-sm">
-                <p className="text-xl font-bold text-foreground">
-                  No hay actividades en esa distancia.
-                </p>
-                <p className="mt-2 text-lg text-muted-foreground">Probá con una distancia mayor.</p>
-                <button
-                  type="button"
-                  onClick={() => cambiarRadio(2500)}
-                  className="mt-4 min-h-14 rounded-xl bg-primary px-6 text-xl font-bold text-primary-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                >
-                  Ver hasta 2,5 km
-                </button>
-              </div>
+              <EmptyState
+                tone="card"
+                title="No hay actividades en esa distancia."
+                hint="Probá con una distancia mayor."
+                action={
+                  <button
+                    type="button"
+                    onClick={() => cambiarRadio(2500)}
+                    className="mt-4 min-h-14 rounded-xl bg-primary px-6 text-xl font-bold text-primary-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    Ver hasta 2,5 km
+                  </button>
+                }
+              />
             )}
 
             <ul className="space-y-4" aria-label="Listado de actividades">
@@ -278,23 +278,14 @@ function CiudadVivaMayor() {
                       <div className="flex flex-col gap-3">
                         {/* Badges gratuito / categoría / fuente */}
                         <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`inline-block rounded-lg px-3 py-1 text-sm font-extrabold ${
-                              a.gratuito
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-secondary text-secondary-foreground"
-                            }`}
-                          >
-                            {a.gratuito ? "Gratuito" : `De pago · ${a.precio}`}
-                          </span>
-                          <span className="inline-block rounded-lg bg-accent px-3 py-1 text-sm font-bold text-accent-foreground">
-                            {a.categoria}
-                          </span>
-                          {a.fuente === "chilecultura" && (
-                            <span className="inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-sm font-bold text-[#EF6C00]">
-                              ChileCultura
-                            </span>
-                          )}
+                          <GratuitoBadge
+                            gratuito={a.gratuito}
+                            textoPago={`De pago · ${a.precio}`}
+                            size="sm"
+                            freeTone="primary"
+                          />
+                          <CategoriaBadge size="sm">{a.categoria}</CategoriaBadge>
+                          {a.fuente === "chilecultura" && <SourceBadge />}
                         </div>
                         {a.fuente === "chilecultura" && a.commune && (
                           <p className="text-sm font-semibold text-[#5D4037]">
@@ -437,9 +428,7 @@ function CiudadVivaMayor() {
                       </span>
                     </h3>
                     {a.fuente === "chilecultura" && (
-                      <span className="inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-xs font-bold text-[#EF6C00]">
-                        ChileCultura{a.commune ? ` · Aprox. en ${a.commune}` : ""}
-                      </span>
+                      <SourceBadge size="xs" commune={a.commune} />
                     )}
                     <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
                       <MapPin className="size-4 shrink-0 text-[#616161]" aria-hidden />

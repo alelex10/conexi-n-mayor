@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { enviarSugerencia } from "@/lib/actividades.functions";
 import { AppShell } from "@/components/AppShell";
+import { FormError } from "@/components/common/FormError";
 
 export const Route = createFileRoute("/sugerencias")({
   head: () => ({
@@ -149,15 +150,7 @@ function Sugerencias() {
             className="min-h-14 rounded-xl border-4 border-border bg-card p-4 text-xl text-card-foreground placeholder:text-muted-foreground focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
 
-          {errorMsg && (
-            <p
-              id="form-error"
-              role="alert"
-              className="rounded-xl bg-destructive/10 p-3 text-lg font-bold text-destructive"
-            >
-              {errorMsg}
-            </p>
-          )}
+          {errorMsg && <FormError message={errorMsg} id="form-error" />}
 
           <button
             type="submit"
