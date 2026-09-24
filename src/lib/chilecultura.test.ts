@@ -84,6 +84,14 @@ describe("mapToActividad", () => {
     const act = mapToActividad(makeRaw({ description: "<p>" + "a".repeat(3000) + "</p>" }));
     expect(act.descripcion.length).toBe(2000);
   });
+  it("passes through commune and region labels and omits blank ones", () => {
+    const act = mapToActividad(makeRaw({ commune: "Lo Prado", region: "Región Metropolitana de Santiago" }));
+    expect(act.commune).toBe("Lo Prado");
+    expect(act.region).toBe("Región Metropolitana de Santiago");
+    const blank = mapToActividad(makeRaw({ commune: "  ", region: "" }));
+    expect(blank.commune).toBeUndefined();
+    expect(blank.region).toBeUndefined();
+  });
   it("passes through single image url and omits empty", () => {
     const withImg = mapToActividad(makeRaw({ image: "https://chilecultura.gob.cl/uploads/cropped_ABC.png" }));
     expect(withImg.imagenUrl).toBe("https://chilecultura.gob.cl/uploads/cropped_ABC.png");

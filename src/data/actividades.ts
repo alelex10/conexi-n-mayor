@@ -35,6 +35,8 @@ export type Actividad = {
   longitud?: number;
   /** Commune string from ChileCultura (e.g. Santiago, Lo Prado) — used for "Aprox. en {commune}" disclosure */
   commune?: string;
+  /** Region label from ChileCultura (e.g. "Región Metropolitana de Santiago") — shown as a card tag */
+  region?: string;
 };
 
 export const RADIO_OPCIONES = [

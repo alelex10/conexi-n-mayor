@@ -103,7 +103,8 @@ export function mapToActividad(raw: RawEvent, detail?: DetailParsed): Actividad 
     ...(imagenUrl ? { imagenUrl } : {}),
     ...(typeof detail?.latitud === "number" ? { latitud: detail.latitud } : {}),
     ...(typeof detail?.longitud === "number" ? { longitud: detail.longitud } : {}),
-    commune: raw.commune ?? undefined,
+    ...(raw.commune?.trim() ? { commune: raw.commune.trim() } : {}),
+    ...(raw.region?.trim() ? { region: raw.region.trim() } : {}),
   };
 }
 
