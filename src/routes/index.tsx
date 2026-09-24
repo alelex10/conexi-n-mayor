@@ -3,9 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Accessibility,
   Car,
-  Clock,
   Database,
-  DollarSign,
   Lightbulb,
   MapPin,
   Megaphone,
@@ -16,7 +14,6 @@ import {
   Users,
   Volume2,
   Home,
-  Footprints,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -28,7 +25,8 @@ import {
   type Actividad,
 } from "@/data/actividades";
 import { AppShell } from "@/components/AppShell";
-import { BuscarActividadesGroq } from "@/components/buscar-actividades-groq";
+import { ActividadCard } from "@/components/actividad-card";
+import { BuscarActividadesChileCultura } from "@/components/buscar-actividades-chilecultura";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,8 +46,9 @@ export const Route = createFileRoute("/")({
   }),
   // Loader runs on the server (SSR) via Nitro/Cloudflare — uses Supabase via server function.
   // Falls back to mock data if SB_* env is not yet configured.
-  // NOTA: home Supabase-only por decisión (Supabase hoy vacío).
-  // ChileCultura vive aislado en /comparar (tab API-only comuna 311 + región RM 1).
+  // NOTA: este loader sigue Supabase-only (Supabase hoy vacío). La vista principal
+  // del home es <BuscarActividadesChileCultura/> (API-only comuna 311 + región RM 1);
+  // la búsqueda Groq (IA) queda en /comparar.
   // Región RM verificada = 1 (el viejo 13 era Magallanes).
   loader: async () => {
     try {
@@ -126,7 +125,7 @@ function CiudadVivaMayor() {
       </h1>
 
       <div className="mt-2">
-        <BuscarActividadesGroq variant="clean" />
+        <BuscarActividadesChileCultura />
       </div>
 
       <div className="mt-6 flex flex-col gap-4">
@@ -274,137 +273,27 @@ function CiudadVivaMayor() {
                 const textoEscuchar = `${a.nombre}. ${formatearFecha(a.fecha)} a las ${a.hora} horas en ${a.lugar}. ${a.descripcion} A ${formatearDistancia(a.distanciaMetros)} de su casa. ${a.gratuito ? "Es gratuito." : `Valor ${a.precio ?? "a consultar"}.`} ${a.bano === "si" ? "Tiene baño." : a.bano === "no" ? "No tiene baño." : ""} ${a.estacionamiento === "si" ? "Tiene estacionamiento." : ""}`;
                 return (
                   <li key={a.id}>
-                    <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
-                      <div className="flex flex-col gap-3">
-                        {a.imagenUrl && (
-                          <img
-                            src={a.imagenUrl}
-                            alt={`Imagen de ${a.nombre}`}
-                            loading="lazy"
-                            className="aspect-video w-full rounded-xl object-cover"
-                          />
-                        )}
-                        {/* Badges gratuito / categoría / fuente */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`inline-block rounded-lg px-3 py-1 text-sm font-extrabold ${
-                              a.gratuito
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-secondary text-secondary-foreground"
-                            }`}
-                          >
-                            {a.gratuito ? "Gratuito" : `De pago · ${a.precio}`}
-                          </span>
-                          <span className="inline-block rounded-lg bg-accent px-3 py-1 text-sm font-bold text-accent-foreground">
-                            {a.categoria}
-                          </span>
-                          {a.fuente === "chilecultura" && (
-                            <span className="inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-sm font-bold text-[#EF6C00]">
-                              ChileCultura
-                            </span>
-                          )}
+                    <ActividadCard
+                      actividad={a}
+                      etiquetaDetalle="Ver cómo llegar"
+                      extras={
+                        <div className="flex flex-wrap gap-2">
+                          <ChipServicio icono={Accessibility} etiqueta="Baño" valor={a.bano} />
+                          <ChipServicio icono={Car} etiqueta="Estacionamiento" valor={a.estacionamiento} />
                         </div>
-                        {a.fuente === "chilecultura" && a.commune && (
-                          <p className="text-sm font-semibold text-[#5D4037]">
-                            Aprox. en {a.commune}
-                          </p>
-                        )}
-
-                        <h3 className="text-xl font-extrabold leading-tight text-[#5D4037]">
-                          <Link
-                            to="/actividad/$id"
-                            params={{ id: a.id }}
-                            className="underline-offset-4 hover:underline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                          >
-                            {a.nombre}
-                          </Link>
-                        </h3>
-
-                        <div className="space-y-2">
-                          <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
-                            <Clock className="size-4 shrink-0 text-[#616161]" aria-hidden />
-                            <span>
-                              {formatearFecha(a.fecha)} · {a.hora} horas
-                            </span>
-                          </p>
-                          <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
-                            <MapPin className="size-4 shrink-0 text-[#616161]" aria-hidden />
-                            <span>{a.lugar}</span>
-                          </p>
-                          <p className="flex items-start gap-2 text-[15px] font-medium leading-snug text-[#424242]">
-                            <Footprints
-                              className="mt-0.5 size-4 shrink-0 text-[#616161]"
-                              aria-hidden
-                            />
-                            <span>
-                              A {formatearDistancia(a.distanciaMetros)} de su casa
-                              {a.fuente === "chilecultura" && (
-                                <span className="ml-1 text-xs font-semibold text-[#8D6E63]">
-                                  — Distancia estimada — confirmar dirección
-                                </span>
-                              )}
-                            </span>
-                          </p>
-                          <p className="line-clamp-3 text-[15px] leading-snug text-[#616161]">
-                            {a.descripcion}
-                          </p>
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            <span
-                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                                a.bano === "si"
-                                  ? "bg-green-100 text-green-800"
-                                  : a.bano === "no"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-muted text-muted-foreground"
-                              }`}
-                            >
-                              <Accessibility className="size-3.5" aria-hidden />
-                              Baño: {a.bano === "si" ? "Sí" : a.bano === "no" ? "No" : "Sin info"}
-                            </span>
-                            <span
-                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                                a.estacionamiento === "si"
-                                  ? "bg-green-100 text-green-800"
-                                  : a.estacionamiento === "no"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-muted text-muted-foreground"
-                              }`}
-                            >
-                              <Car className="size-3.5" aria-hidden />
-                              Estac.:{" "}
-                              {a.estacionamiento === "si"
-                                ? "Sí"
-                                : a.estacionamiento === "no"
-                                  ? "No"
-                                  : "Sin info"}
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">
-                              <DollarSign className="size-3.5" aria-hidden />
-                              {a.gratuito ? "¡ES GRATIS!" : (a.precio ?? "De pago")}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <Link
-                            to="/actividad/$id"
-                            params={{ id: a.id }}
-                            className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full bg-[#1E6CB4] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#164F8A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1E6CB4]"
-                          >
-                            Ver cómo llegar
-                          </Link>
-                          <button
+                      }
+                      acciones={
+                        <button
                             type="button"
                             onClick={() => handleEscuchar(textoEscuchar)}
-                            className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#2E7D32] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#256428] active:bg-[#1E4F22] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2E7D32]"
+                            className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#2E7D32] px-4 text-lg font-bold text-white shadow-sm transition-colors hover:bg-[#256428] active:bg-[#1E4F22] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2E7D32]"
                             aria-label={`Escuchar información de ${a.nombre}`}
                           >
-                            <Volume2 className="size-4 shrink-0" aria-hidden />
+                            <Volume2 className="size-5 shrink-0" aria-hidden />
                             Escuchar
                           </button>
-                        </div>
-                      </div>
-                    </article>
+                      }
+                    />
                   </li>
                 );
               })}
@@ -431,85 +320,70 @@ function CiudadVivaMayor() {
           </h2>
 
           <div className="space-y-4">
-            {actividadesBarrio.map((a) => (
-              <article
-                key={a.id}
-                className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm"
-              >
-                <div className="flex flex-col gap-3">
-                  {a.imagenUrl && (
-                    <img
-                      src={a.imagenUrl}
-                      alt={`Imagen de ${a.nombre}`}
-                      loading="lazy"
-                      className="aspect-video w-full rounded-xl object-cover"
-                    />
-                  )}
-                  <div className="space-y-2">
-                    <h3 className="flex items-center gap-2 text-lg font-extrabold leading-tight text-[#EF6C00]">
-                      <Clock className="size-5 shrink-0" aria-hidden />
-                      <span>
-                        {formatearFecha(a.fecha)} {a.hora} - {a.nombre}
-                      </span>
-                    </h3>
-                    {a.fuente === "chilecultura" && (
-                      <span className="inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-xs font-bold text-[#EF6C00]">
-                        ChileCultura{a.commune ? ` · Aprox. en ${a.commune}` : ""}
-                      </span>
-                    )}
-                    <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#424242]">
-                      <MapPin className="size-4 shrink-0 text-[#616161]" aria-hidden />
-                      <span>{a.lugar}</span>
-                    </p>
-                    <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
-                      <DollarSign className="size-4 shrink-0" aria-hidden />
-                      <span>{a.gratuito ? "¡ES GRATIS!" : (a.precio ?? "De pago")}</span>
-                    </p>
-                    <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
-                      <Accessibility className="size-4 shrink-0" aria-hidden />
-                      <span>a {formatearDistancia(a.distanciaMetros)} de su casa</span>
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleEscuchar(
-                            `${formatearFecha(a.fecha)} a las ${a.hora}, ${a.nombre} en ${a.lugar}. ${
-                              a.gratuito ? "Es gratis." : `De pago${a.precio ? `, ${a.precio}` : ""}.`
-                            } Queda a ${formatearDistancia(a.distanciaMetros)} de su casa.`,
-                        )
-                      }
-                      className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#2E7D32] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#256428] active:bg-[#1E4F22] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2E7D32]"
-                      aria-label={`Escuchar información de ${a.nombre}`}
-                    >
-                      <Volume2 className="size-4 shrink-0" aria-hidden />
-                      Escuchar
-                    </button>
-                    {a.telefono && (
-                      <a
-                        href={`tel:${a.telefono}`}
-                        className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#1565C0] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#104F9A] active:bg-[#0D3F7A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1565C0]"
-                        aria-label={`Llamar para consultar por ${a.nombre}`}
+            {actividadesBarrio.map((a) => {
+              const textoEscuchar = `${formatearFecha(a.fecha)} a las ${a.hora}, ${a.nombre} en ${a.lugar}. ${
+                a.gratuito ? "Es gratis." : `De pago${a.precio ? `, ${a.precio}` : ""}.`
+              } Queda a ${formatearDistancia(a.distanciaMetros)} de su casa.`;
+              return (
+                <ActividadCard
+                  key={a.id}
+                  actividad={a}
+                  etiquetaDetalle="Ver más"
+                  acciones={
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleEscuchar(textoEscuchar)}
+                        className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#2E7D32] px-4 text-lg font-bold text-white shadow-sm transition-colors hover:bg-[#256428] active:bg-[#1E4F22] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2E7D32]"
+                        aria-label={`Escuchar información de ${a.nombre}`}
                       >
-                        <Phone className="size-4 shrink-0" aria-hidden />
-                        Llamar
-                      </a>
-                    )}
-                    <Link
-                      to="/actividad/$id"
-                      params={{ id: a.id }}
-                      className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#F57C00] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#E65100] active:bg-[#BF360C] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#F57C00]"
-                    >
-                      Ver más
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            ))}
+                        <Volume2 className="size-5 shrink-0" aria-hidden />
+                        Escuchar
+                      </button>
+                      {a.telefono && (
+                        <a
+                          href={`tel:${a.telefono}`}
+                          className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#1565C0] px-4 text-lg font-bold text-white shadow-sm transition-colors hover:bg-[#104F9A] active:bg-[#0D3F7A] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1565C0]"
+                          aria-label={`Llamar para consultar por ${a.nombre}`}
+                        >
+                          <Phone className="size-5 shrink-0" aria-hidden />
+                          Llamar
+                        </a>
+                      )}
+                    </>
+                  }
+                />
+              );
+            })}
           </div>
         </section>
       )}
     </AppShell>
+  );
+}
+
+type ValorServicio = Actividad["bano"];
+
+function ChipServicio({
+  icono: Icono,
+  etiqueta,
+  valor,
+}: {
+  icono: typeof Car;
+  etiqueta: string;
+  valor: ValorServicio;
+}) {
+  const estilo =
+    valor === "si"
+      ? "bg-green-100 text-green-800"
+      : valor === "no"
+        ? "bg-red-100 text-red-800"
+        : "bg-muted text-muted-foreground";
+  const texto = valor === "si" ? "Sí" : valor === "no" ? "No" : "Sin info";
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold ${estilo}`}>
+      <Icono className="size-4" aria-hidden />
+      {etiqueta}: {texto}
+    </span>
   );
 }
