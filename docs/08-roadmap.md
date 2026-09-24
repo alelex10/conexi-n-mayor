@@ -9,9 +9,6 @@ description: "Timeline por fases desde el template hasta los próximos pasos del
 
 **Estado:** ✅ Definido (histórico y fase actual) / 🔜 Roadmap futuro (próximos pasos)
 
-> [!NOTE]
-> **Síntesis nacional:** el roadmap 12 meses 5→50→345 comunas y la decisión pipeline híbrido viven en [fuentes-de-datos/04-sintesis-recomendacion.md](./fuentes-de-datos/04-sintesis-recomendacion.md) (ver también [fuentes-de-datos/README.md](./fuentes-de-datos/README.md)).
-
 ## Contenido
 
 - [Línea de tiempo visual](#línea-de-tiempo-visual)
@@ -107,7 +104,7 @@ description: "Timeline por fases desde el template hasta los próximos pasos del
 |---|------|--------|-------------|------------|
 | **1** | **Estabilizar web** | 🔜 Siguiente | Auditoría WCAG AAA, Lighthouse/Web Vitals, corrección de contrastes y focos, medición RNF-05/RNF-06. | — |
 | **2** | **PWA** | 🔜 Roadmap futuro | Manifest, iconos, service worker (offline parcial: última lista + ficha en caché), criterio de instalación no invasivo. | Nombre definitivo, hosting |
-| **3** | **Automatizar adquisición** | 🔜 Roadmap futuro | Jobs de scraping (`loprado.cl` / FB), normalización IA + validación humana, panel de carga manual para Oficina Adulto Mayor. Ver deep dive: [fuentes-de-datos/](./fuentes-de-datos/README.md) + [03-arquitectura-hibrida](./fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md) y [Síntesis 12 meses](./fuentes-de-datos/04-sintesis-recomendacion.md#6-roadmap-12-meses--5-50-345). | Acuerdo operativo, [02-estrategia-adquisicion-actividades.md](./02-estrategia-adquisicion-actividades.md) |
+| **3** | **Automatizar adquisición** | 🔜 Roadmap futuro | Jobs de scraping (`loprado.cl` / FB), normalización IA + validación humana, panel de carga manual para Oficina Adulto Mayor. | Acuerdo operativo, [02-estrategia-adquisicion-actividades.md](./02-estrategia-adquisicion-actividades.md) |
 | **4** | **Transporte — detalle** | ⏳ Pendiente detalle implementación | Directorio validado de radio taxis, deep-links Uber/Cabify/DiDi, copy y orden de botones, pruebas con usuarios 60+. | Validación municipal, [04-integracion-transporte.md](./04-integracion-transporte.md) |
 | **5** | **Validación con Oficina Adulto Mayor** | 🔜 Roadmap futuro | Pruebas con usuarios reales 60+, ajuste de lenguaje y radios, acuerdo de carga y actualización de actividades. | Pasos 1–3 |
 | **6** | **Geolocalización en vivo (opcional)** | 🚧 A decidir | Cálculo Haversine, flujo de permiso, fallback a `distancia_metros` curada. | Privacidad, [05-concepto-cerca-radio-distancia.md](./05-concepto-cerca-radio-distancia.md) |
@@ -132,9 +129,6 @@ description: "Timeline por fases desde el template hasta los próximos pasos del
 
 - [01-vision-general.md](./01-vision-general.md) — visión y evolución de plataforma.
 - [02-estrategia-adquisicion-actividades.md](./02-estrategia-adquisicion-actividades.md) — automatización futura (resumen).
-- [fuentes-de-datos/README.md](./fuentes-de-datos/README.md) — deep dive métodos adquisición 345 comunas.
-- [fuentes-de-datos/04-sintesis-recomendacion.md](./fuentes-de-datos/04-sintesis-recomendacion.md) — Síntesis y roadmap 12 meses 5→50→345.
-- [fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md](./fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md) — pipeline híbrido nacional + legal/B2G.
 - [04-integracion-transporte.md](./04-integracion-transporte.md) — transporte pendiente.
 - [05-concepto-cerca-radio-distancia.md](./05-concepto-cerca-radio-distancia.md) — geolocalización futura.
 - [06-requisitos-producto.md](./06-requisitos-producto.md) — alcance por fase.

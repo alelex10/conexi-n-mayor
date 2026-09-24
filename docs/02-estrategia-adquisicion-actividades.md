@@ -11,7 +11,7 @@ description: "Metodologías para poblar el catálogo de actividades y recomendac
 **Estado:** 🚧 A decidir — la recomendación híbrida está acordada a alto nivel; faltan definiciones de operación y validación.
 
 > [!NOTE]
-> **Deep dive:** la investigación completa con evidencia verificada (9 subagentes, 3 oleadas, 345 comunas) vive en [fuentes-de-datos/](./fuentes-de-datos/README.md). Este archivo es el resumen ejecutivo.
+> Este archivo es el resumen ejecutivo vigente. La investigación de detalle (3 oleadas, 345 comunas) se archivó fuera de `docs/` para mantener solo lo esencial.
 
 ## Contenido
 
@@ -34,8 +34,6 @@ No existe una única fuente completa y confiable de actividades locales para Lo 
 
 ## 2.1 APIs de Gobierno
 
-> Ver detalle en [fuentes-de-datos/01-mapeo-nacional-oleada-1.md](./fuentes-de-datos/01-mapeo-nacional-oleada-1.md#1-mapa-de-fuentes-nacionales--tabla-maestra) — Tabla maestra: ChileCultura como única API nacional viva (490 eventos), SENAMA/IND sin API.
-
 **Qué es:** consumo de APIs públicas de `datos.gob.cl`, SENAMA u otros portales de gobierno que expongan eventos o actividades con estructura formal.
 
 | Aspecto | Detalle |
@@ -49,8 +47,6 @@ No existe una única fuente completa y confiable de actividades locales para Lo 
 > **A DECIDIR:** si se detecta un endpoint útil, quién lo monitorea y con qué frecuencia se sincroniza. Ver también [07-arquitectura-y-stack.md](./07-arquitectura-y-stack.md) para el lugar de esa integración en el stack.
 
 ## 2.2 Scraping web
-
-> Ver detalle en [fuentes-de-datos/01-mapeo-nacional-oleada-1.md](./fuentes-de-datos/01-mapeo-nacional-oleada-1.md#1b-fragmentación-municipal-muestra-10-comunas--detalle-en-subagente-1b) (fragmentación: 20% fácil / 60% difícil / 20% imposible) y [fuentes-de-datos/02-validacion-tecnica-oleada-2.md](./fuentes-de-datos/02-validacion-tecnica-oleada-2.md#1-poc-2a--scraping-seed) (POC Providencia frágil vs Concepción REST).
 
 **Qué es:** extracción automatizada del sitio oficial de Lo Prado (`loprado.cl`), Facebook municipal, páginas de centros culturales y sedes vecinales.
 
@@ -72,8 +68,6 @@ Buenas prácticas si se implementa:
 
 ## 2.3 IA + Web Search
 
-> Ver detalle en [fuentes-de-datos/02-validacion-tecnica-oleada-2.md](./fuentes-de-datos/02-validacion-tecnica-oleada-2.md#2-poc-2b--ia-extracción-afiche-jpg) — pipeline Google Vision + gpt-4o-mini, 88% precisión nombre+fecha+hora, USD 0.60/100 afiches, thresholds 0.85/0.70.
-
 **Qué es:** agentes o scripts semanales que buscan eventos en noticias, redes sociales locales y web abierta, y sintetizan texto desestructurado a un formato limpio de actividad.
 
 | Aspecto | Detalle |
@@ -89,8 +83,6 @@ En el repositorio ya existen ramas de exploración con extracción por visión (
 > **A DECIDIR:** modelo/proveedor definitivo, umbral de confianza para publicación automática vs. revisión humana, quién valida y en qué herramienta (panel interno, tabla Supabase, etc.).
 
 ## 2.4 Carga manual comunitaria
-
-> Ver detalle en [fuentes-de-datos/02-validacion-tecnica-oleada-2.md](./fuentes-de-datos/02-validacion-tecnica-oleada-2.md#3-poc-2c--panel-municipal--supabase) (Supabase + form custom + RLS) y [fuentes-de-datos/01-mapeo-nacional-oleada-1.md](./fuentes-de-datos/01-mapeo-nacional-oleada-1.md#1d-modelo-humano-b2g-detalle-en-subagente-1d) (modelo concierge Vamos a Cuidarnos).
 
 **Qué es:** formulario o panel simple administrado por la **Oficina del Adulto Mayor de Lo Prado**, juntas de vecinos y organizaciones comunitarias para cargar actividades directamente.
 
@@ -111,8 +103,6 @@ Estado actual en el código:
 > **A DECIDIR:** diseño final del panel de carga (quién accede, autenticación, validación de campos, flujo de publicación `borrador → publicada → archivada`), y acuerdo operativo con la Oficina del Adulto Mayor.
 
 ## 2.5 Recomendación para el MVP: enfoque híbrido
-
-> Ver detalle en [fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md](./fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md#1-arquitectura-pipeline-híbrido-nacional) (pipeline pg_cron/pgmq + costos) y [fuentes-de-datos/04-sintesis-recomendacion.md](./fuentes-de-datos/04-sintesis-recomendacion.md#3-arquitectura-recomendada--pipeline-híbrido-nacional) (veredicto + matriz).
 
 **Recomendación vigente (acordada a alto nivel, pendiente de detalle operativo):**
 
@@ -169,5 +159,3 @@ Validación:
 - [06-requisitos-producto.md](./06-requisitos-producto.md) — PRD y criterios de aceptación.
 - [07-arquitectura-y-stack.md](./07-arquitectura-y-stack.md) — dónde vive cada integración en el stack.
 - [08-roadmap.md](./08-roadmap.md) — fases y automatización futura.
-- [fuentes-de-datos/README.md](./fuentes-de-datos/README.md) — **Deep dive** investigación completa (3 oleadas, 345 comunas, 9 subagentes).
-- [fuentes-de-datos/04-sintesis-recomendacion.md](./fuentes-de-datos/04-sintesis-recomendacion.md) — Síntesis y recomendación final.

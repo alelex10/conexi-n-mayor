@@ -176,7 +176,7 @@ npm run dev
 Luego ejecutar [`supabase/schema.sql`](../supabase/schema.sql) completo en Supabase SQL Editor.
 
 > [!NOTE]
-> **Pipeline híbrido a escala nacional:** el diseño validado para 345 comunas (pg_cron + pgmq + staging con hash + enrich Vision/geocode + validación humana) está detallado en [fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md](./fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md). Ver también [02-estrategia-adquisicion-actividades.md](./02-estrategia-adquisicion-actividades.md) (resumen) y [fuentes-de-datos/04-sintesis-recomendacion.md](./fuentes-de-datos/04-sintesis-recomendacion.md) (síntesis).
+> Para escala nacional se prevé pipeline con staging + validación humana (ver [02-estrategia-adquisicion-actividades.md](./02-estrategia-adquisicion-actividades.md) como resumen vigente).
 
 ## Decisiones pendientes
 
@@ -200,8 +200,6 @@ Luego ejecutar [`supabase/schema.sql`](../supabase/schema.sql) completo en Supab
 
 - [01-vision-general.md](./01-vision-general.md) — evolución de plataforma.
 - [02-estrategia-adquisicion-actividades.md](./02-estrategia-adquisicion-actividades.md) — origen y validación de datos (resumen).
-- [fuentes-de-datos/README.md](./fuentes-de-datos/README.md) — investigación profunda 345 comunas (deep dive).
-- [fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md](./fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md) — pipeline híbrido nacional.
 - [03-nucleo-descubrimiento-actividades.md](./03-nucleo-descubrimiento-actividades.md) — flujo que consume Supabase.
 - [06-requisitos-producto.md](./06-requisitos-producto.md) — requisitos que el stack debe satisfacer.
 - [08-roadmap.md](./08-roadmap.md) — fases y próximos pasos técnicos.

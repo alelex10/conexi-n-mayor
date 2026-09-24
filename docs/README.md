@@ -45,7 +45,7 @@ El [`README.md` raíz](../README.md) es solo un resumen operativo con instruccio
 | --- | -------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | —   | [README.md](./README.md) _(este archivo)_                                              | ✅ Definido                         | Índice maestro, leyenda y guía de lectura.                                                                                                                    |
 | 01  | [01-vision-general.md](./01-vision-general.md)                                         | ✅ Definido                         | Visión, objetivo, público 60+, alcance piloto Lo Prado y evolución de plataforma (Android nativo → web → PWA).                                                |
-| 02  | [02-estrategia-adquisicion-actividades.md](./02-estrategia-adquisicion-actividades.md) | 🚧 A decidir                        | **Estrategia de Adquisición de Actividades** — metodologías de carga de datos (APIs, scraping, IA+Web Search, carga manual) y recomendación híbrida para MVP. → Deep dive: [fuentes-de-datos/](./fuentes-de-datos/README.md) |
+| 02  | [02-estrategia-adquisicion-actividades.md](./02-estrategia-adquisicion-actividades.md) | 🚧 A decidir                        | **Estrategia de Adquisición de Actividades** — metodologías de carga de datos (APIs, scraping, IA+Web Search, carga manual) y recomendación híbrida para MVP. |
 | 03  | [03-nucleo-descubrimiento-actividades.md](./03-nucleo-descubrimiento-actividades.md)   | ✅ Definido                         | Núcleo del producto: listado, filtro por radio, tarjeta y ficha de detalle (baño / estacionamiento / cómo llegar).                                            |
 | 04  | [04-integracion-transporte.md](./04-integracion-transporte.md)                         | ⏳ Pendiente detalle implementación | Integración de transporte a alto nivel (radio taxi + deep-link apps). Sin detalle telefónico ni de implementación final.                                      |
 | 05  | [05-concepto-cerca-radio-distancia.md](./05-concepto-cerca-radio-distancia.md)         | ✅ Definido                         | Definición de “cerca”: umbrales caminables y en micro, opciones de radio en UI (800 m / 1500 m / 2500 m).                                                     |
@@ -69,24 +69,9 @@ El [`README.md` raíz](../README.md) es solo un resumen operativo con instruccio
 7. [04-integracion-transporte.md](./04-integracion-transporte.md) — alcance actual de transporte.
 8. [08-roadmap.md](./08-roadmap.md) — de dónde venimos y hacia dónde vamos.
 
-## Investigación profunda
+## Nota de archivo
 
-> Directorio dedicado portado desde el vault Obsidian `vault/actividad facil/fuentes-de-datos/` — evidencia verificada con `websearch`/`webfetch`, 9 subagentes, 345 comunas.
-
-### `fuentes-de-datos/` — Métodos de adquisición a escala nacional
-
-Investigación 2026-08-27, 3 oleadas sobre 345 comunas. **Entrada:** [fuentes-de-datos/README.md](./fuentes-de-datos/README.md) (MOC).
-
-| # | Documento | Descripción |
-|---|-----------|-------------|
-| 00 | [README.md](./fuentes-de-datos/README.md) | Índice MOC — mapa de oleadas, hallazgos clave (7 insights) y estado |
-| 01 | [01-mapeo-nacional-oleada-1.md](./fuentes-de-datos/01-mapeo-nacional-oleada-1.md) | **Oleada 1 — Mapeo Nacional:** 4 subagentes (APIs, fragmentación 10 comunas, redes, B2G). Tabla maestra 8 fuentes, ranking unificado. ChileCultura como motor. |
-| 02 | [02-validacion-tecnica-oleada-2.md](./fuentes-de-datos/02-validacion-tecnica-oleada-2.md) | **Oleada 2 — Validación Técnica:** 3 POCs (scraping seed, IA afiche Vision+mini, panel Supabase). Snippets TS/SQL listos. |
-| 03 | [03-arquitectura-hibrida-oleada-3.md](./fuentes-de-datos/03-arquitectura-hibrida-oleada-3.md) | **Oleada 3 — Arquitectura Híbrida:** pipeline pg_cron/pgmq, geocoding 1 req/s, legal Ley 21.719, B2G ChileCompra 30 UTM, alianza Conecta Mayor |
-| 04 | [04-sintesis-recomendacion.md](./fuentes-de-datos/04-sintesis-recomendacion.md) | **Síntesis y Recomendación:** veredicto 1 página, matriz decisión final, pipeline híbrido, roadmap 12 meses 5→50→345 |
-
-> [!NOTE]
-> `docs/02-estrategia-adquisicion-actividades.md` es el **resumen ejecutivo**. Para evidencia completa, ver `fuentes-de-datos/`.
+> La investigación de detalle (3 oleadas, 345 comunas, 2026-08-27) se archivó fuera de `docs/` para mantener solo lo esencial MVP + estrategia. `02-estrategia-adquisicion-actividades.md` queda como resumen ejecutivo vigente.
 
 ## Convenciones
 
