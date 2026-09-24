@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Database, FlaskConical, Home, Phone, Settings } from "lucide-react";
+import { Database, Home, Phone } from "lucide-react";
 
 export function AppHeader() {
   return (
@@ -17,25 +17,7 @@ export function AppHeader() {
           Ciudad Viva Mayor
         </span>
       </div>
-
-      <div className="flex items-center gap-1">
-      <Link
-        to="/comparar"
-        aria-label="Comparar búsquedas"
-        className="flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-white transition-colors hover:bg-white/10 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
-      >
-        <FlaskConical className="size-7" aria-hidden />
-        <span className="text-xs font-semibold leading-none">Comparar</span>
-      </Link>
-      <Link
-        to="/sugerencias"
-        aria-label="Enviar sugerencia"
-        className="flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-white transition-colors hover:bg-white/10 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
-      >
-        <Settings className="size-7" aria-hidden />
-        <span className="text-xs font-semibold leading-none">Ajustes</span>
-      </Link>
-      </div>
+      {/* /comparar and /sugerencias stay reachable by direct URL only (hidden routes). */}
     </header>
   );
 }
