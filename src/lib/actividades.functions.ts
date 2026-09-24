@@ -114,7 +114,9 @@ export const listarActividades = createServerFn({ method: "GET" })
       if (!isChileCulturaEnabled()) return dedupeSortSlice(base);
       // Orden para la vista: base curada → comuna (micro) → región (macro), cada grupo por fecha/hora
       if (data.communeId != null || data.soloExternos) {
-        const comunaActs = await fetchListaCached({ ...(data.communeId != null ? { commune: data.communeId } : {}), pages: data.paginas }).catch(() => []);
+        const comunaActs = data.communeId != null
+          ? await fetchListaCached({ commune: data.communeId, pages: data.paginas }).catch(() => [])
+          : [];
         const regionActs = await fetchListaCached({ ...(data.regionId != null ? { region: data.regionId } : {}), pages: data.paginas }).catch(() => []);
         if (!comunaActs.length && !regionActs.length) return dedupeSortSlice(base);
         const merged = [...sortPorFecha(base), ...sortPorFecha(comunaActs), ...sortPorFecha(regionActs)];
