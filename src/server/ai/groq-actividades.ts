@@ -91,6 +91,7 @@ export type BuscarActividadesInput = {
   latitud?: number | undefined; // -90..90, device coords (ephemeral, advisory only)
   longitud?: number | undefined; // -180..180, device coords (ephemeral, advisory only)
   locationLabel?: string | undefined; // reverse-geocoded place NAME, display only
+  fuentesWeb?: { url: string; titulo: string; contenido: string }[] | undefined; // resultados reales de búsqueda web
 };
 
 export type GroqBusquedaResult = {
@@ -217,6 +218,17 @@ export function buildUserPrompt(input: BuscarActividadesInput): string {
   if (input.radioMetros) parts.push(`Radio aproximado: ${input.radioMetros} metros`);
   if (input.categoria) parts.push(`Categoría preferida: ${input.categoria}`);
   if (input.fechaDesde) parts.push(`Fecha desde (YYYY-MM-DD): ${input.fechaDesde} — prioriza actividades en o después de esa fecha`);
+  if (input.fuentesWeb && input.fuentesWeb.length > 0) {
+    parts.push("", "RESULTADOS REALES DE BÚSQUEDA WEB (única fuente permitida):");
+    input.fuentesWeb.forEach((f, i) => {
+      parts.push(`--- Fuente ${i + 1}: ${f.titulo}\nURL: ${f.url}\n${f.contenido}`);
+    });
+    parts.push(
+      "",
+      "Instrucciones: Extraé SOLO actividades que aparezcan explícitamente en las fuentes de arriba. NO uses tu memoria ni inventes actividades, fechas, direcciones ni URLs. fuente_url DEBE ser exactamente una de las URLs listadas arriba. Si un dato no aparece en la fuente, usá null. Si ninguna fuente tiene actividades relevantes, devolvé actividades: []. Devolvé SOLO JSON válido según el schema del system prompt.",
+    );
+    return parts.join("\n");
+  }
   parts.push(
     "Instrucciones: Buscá actividades REALES y actuales cerca de esa ubicación (actuá como si hubieras buscado en la web con tu conocimiento). Devolvé SOLO JSON válido según el schema del system prompt. No uses markdown. Usá null donde no tengas dato. Incluí fuente_url cuando exista o sea inferible. El JSON debe ser válido.",
   );
