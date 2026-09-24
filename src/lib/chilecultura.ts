@@ -46,10 +46,22 @@ export function stripHtml(html: string): string {
   t = t.replace(/<[^>]+>/g, " ");
   t = t.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&apos;/gi, "'")
+    .replace(/&([a-zA-Z]+);/g, (m, name: string) => NAMED_ENTITIES[name] ?? m)
     .replace(/&#(\d+);/g, (_m, d: string) => { const n = parseInt(d, 10); return Number.isFinite(n) ? String.fromCharCode(n) : _m; })
     .replace(/&#x([0-9a-fA-F]+);/g, (_m, h: string) => { const n = parseInt(h, 16); return Number.isFinite(n) ? String.fromCharCode(n) : _m; });
   return t.replace(/\s+/g, " ").trim();
 }
+
+/** Named HTML entities beyond the basic five (Spanish + common punctuation). */
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+  ntilde: "ñ", Ntilde: "Ñ", uuml: "ü", Uuml: "Ü", ccedil: "ç",
+  iquest: "¿", iexcl: "¡", laquo: "«", raquo: "»",
+  ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’",
+  ndash: "–", mdash: "—", hellip: "…", deg: "°", ordf: "ª", ordm: "º",
+};
 
 export function extractHora(desc: string): string | null {
   if (!desc) return null;

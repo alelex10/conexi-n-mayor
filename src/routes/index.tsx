@@ -271,7 +271,7 @@ function CiudadVivaMayor() {
 
             <ul className="space-y-4" aria-label="Listado de actividades">
               {ordenadas.map((a) => {
-                const textoEscuchar = `${a.nombre}. ${formatearFecha(a.fecha)} a las ${a.hora} horas en ${a.lugar}. ${a.descripcion} A ${formatearDistancia(a.distanciaMetros)} de su casa. ${a.gratuito ? "Es gratuito." : `Valor ${a.precio}.`} ${a.bano === "si" ? "Tiene baño." : a.bano === "no" ? "No tiene baño." : ""} ${a.estacionamiento === "si" ? "Tiene estacionamiento." : ""}`;
+                const textoEscuchar = `${a.nombre}. ${formatearFecha(a.fecha)} a las ${a.hora} horas en ${a.lugar}. ${a.descripcion} A ${formatearDistancia(a.distanciaMetros)} de su casa. ${a.gratuito ? "Es gratuito." : `Valor ${a.precio ?? "a consultar"}.`} ${a.bano === "si" ? "Tiene baño." : a.bano === "no" ? "No tiene baño." : ""} ${a.estacionamiento === "si" ? "Tiene estacionamiento." : ""}`;
                 return (
                   <li key={a.id}>
                     <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
@@ -380,7 +380,7 @@ function CiudadVivaMayor() {
                             </span>
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">
                               <DollarSign className="size-3.5" aria-hidden />
-                              {a.gratuito ? "¡ES GRATIS!" : a.precio}
+                              {a.gratuito ? "¡ES GRATIS!" : (a.precio ?? "De pago")}
                             </span>
                           </div>
                         </div>
@@ -463,7 +463,7 @@ function CiudadVivaMayor() {
                     </p>
                     <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
                       <DollarSign className="size-4 shrink-0" aria-hidden />
-                      <span>{a.gratuito ? "¡ES GRATIS!" : a.precio}</span>
+                      <span>{a.gratuito ? "¡ES GRATIS!" : (a.precio ?? "De pago")}</span>
                     </p>
                     <p className="flex items-center gap-2 text-[15px] font-medium leading-snug text-[#616161]">
                       <Accessibility className="size-4 shrink-0" aria-hidden />
@@ -475,9 +475,9 @@ function CiudadVivaMayor() {
                       type="button"
                       onClick={() =>
                         handleEscuchar(
-                          `${formatearFecha(a.fecha)} a las ${a.hora}, ${a.nombre} en ${a.lugar}. ${
-                            a.gratuito ? "Es gratis." : "De pago, " + a.precio + "."
-                          } Queda a ${formatearDistancia(a.distanciaMetros)} de su casa.`,
+                            `${formatearFecha(a.fecha)} a las ${a.hora}, ${a.nombre} en ${a.lugar}. ${
+                              a.gratuito ? "Es gratis." : `De pago${a.precio ? `, ${a.precio}` : ""}.`
+                            } Queda a ${formatearDistancia(a.distanciaMetros)} de su casa.`,
                         )
                       }
                       className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#2E7D32] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#256428] active:bg-[#1E4F22] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2E7D32]"

@@ -25,6 +25,11 @@ describe("stripHtml", () => {
     expect(stripHtml("A&nbsp;B")).toBe("A B");
     expect(stripHtml("<script>x</script> keep")).toBe("keep");
   });
+  it("decodes Spanish named entities and quotes", () => {
+    expect(stripHtml("<p>Librer&iacute;a &amp; caf&eacute;</p>")).toBe("Librería & café");
+    expect(stripHtml("&iquest;Qu&eacute; Leo? &ldquo;hola&rdquo;")).toBe("¿Qué Leo? “hola”");
+    expect(stripHtml("a&ntilde;os &mdash; Ñu&ntilde;oa")).toBe("años — Ñuñoa");
+  });
   it("collapses whitespace", () => expect(stripHtml("  <p>  foo   bar </p>  ")).toBe("foo bar"));
 });
 

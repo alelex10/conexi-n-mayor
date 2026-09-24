@@ -108,9 +108,9 @@ function Detalle() {
         className={`mt-4 inline-block rounded-lg px-4 py-2 text-xl font-bold ${
           actividad.gratuito ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
         }`}
-        aria-label={actividad.gratuito ? "Actividad gratuita" : `Actividad de pago ${actividad.precio}`}
+        aria-label={actividad.gratuito ? "Actividad gratuita" : `Actividad de pago ${actividad.precio ?? ""}`.trim()}
       >
-        {actividad.gratuito ? "Gratuito" : `De pago · ${actividad.precio}`}
+        {actividad.gratuito ? "Gratuito" : (actividad.precio ? `De pago · ${actividad.precio}` : "De pago")}
       </p>
 
       <div className="mt-6 rounded-2xl border-4 border-border bg-card p-5 text-xl text-card-foreground">

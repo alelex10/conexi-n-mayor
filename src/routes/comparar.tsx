@@ -292,7 +292,7 @@ function ChileCulturaTab() {
                       a.gratuito ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
                     }`}
                   >
-                    {a.gratuito ? "Gratuito" : `De pago · ${a.precio}`}
+                    {a.gratuito ? "Gratuito" : (a.precio ?? "De pago")}
                   </span>
                   <span className="inline-block rounded-lg bg-accent px-3 py-1 text-sm font-bold text-accent-foreground">
                     {a.categoria}
