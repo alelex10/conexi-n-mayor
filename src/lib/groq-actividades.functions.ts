@@ -98,21 +98,54 @@ export const buscarActividadesPorUbicacionFn = createServerFn({ method: "POST" }
     if (data.longitud !== undefined) groqInput.longitud = data.longitud;
     if (data.locationLabel !== undefined) groqInput.locationLabel = data.locationLabel;
 
+    // Búsqueda web real: la IA solo extrae de páginas encontradas.
+    const { buscarFuentesWeb } = await import("@/server/ai/web-search.server");
+    const cat = data.categoria ? ` ${data.categoria}` : "";
+    const fuentes = await buscarFuentesWeb(
+      `talleres actividades adultos mayores${cat} ${data.ubicacion} municipalidad centro cultural`,
+      6,
+    );
+    const fuentesWeb = fuentes;
+    const urlsValidas = new Set(fuentes.map((f) => f.url));
+
     let result;
-    if (proveedor === "lovable") {
+    if (fuentes.length === 0) {
+      result = {
+        actividades: [],
+        total: 0,
+        confidence: 0,
+        usedModel: data.model ?? "",
+        ubicacion: data.ubicacion,
+        warnings: ["La búsqueda web no encontró páginas para esta ubicación."],
+        raw: { actividades: [] },
+      };
+    } else if (proveedor === "lovable") {
       const { buscarActividadesConLovable } = await import("@/server/ai/lovable-actividades");
-      result = await buscarActividadesConLovable(groqInput);
+      result = await buscarActividadesConLovable({ ...groqInput, fuentesWeb });
     } else {
       const { buscarActividadesConGroq } = await import("@/server/ai/groq-actividades");
-      result = await buscarActividadesConGroq(groqInput);
+      result = await buscarActividadesConGroq({ ...groqInput, fuentesWeb });
     }
 
+    // Descartar URLs que no provienen de la búsqueda real.
+    result.actividades = result.actividades.map((a) => {
+      if (a.fuente_url && !urlsValidas.has(a.fuente_url)) {
+        return {
+          ...a,
+          fuente_url: null,
+          confidence: Math.min(a.confidence, 0.5),
+          warnings: [...(a.warnings ?? []), "Enlace no verificado: se quitó porque no vino de la búsqueda web."],
+        };
+      }
+      return a;
+    });
 
     const confidence = result.confidence;
     const needsReview = confidence < HITL_THRESHOLD;
     const status = needsReview ? ("needs_review" as const) : ("ok" as const);
     const usedModel =
       result.usedModel || data.model?.trim() || process.env["GROQ_MODEL"] || DEFAULT_GROQ_MODEL;
+
 
 
     if (needsReview) {
