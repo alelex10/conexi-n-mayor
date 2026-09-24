@@ -138,11 +138,11 @@ describe("fetchLista", () => {
       const url = String(input);
       expect(url.startsWith(CHILECULTURA_BASE)).toBe(true);
       expect(url).not.toContain("www.");
-      expect(url).toContain("region=13");
+      expect(url).toContain("region=1");
       const page = new URL(url).searchParams.get("page");
       return { ok: true, json: async () => ({ results: page === "2" ? r2 : r1 }) } as Response;
     });
-    const res = await fetchLista({ region: 13, pageSize: 50, pages: 2 });
+    const res = await fetchLista({ region: 1, pageSize: 50, pages: 2 });
     expect(spy).toHaveBeenCalledTimes(2);
     expect((spy.mock.calls[0]![1] as RequestInit).headers!["User-Agent"]).toBe("CiudadVivaMayor/1.0");
     expect((spy.mock.calls[0]![1] as RequestInit).signal).toBeInstanceOf(AbortSignal);
@@ -169,6 +169,30 @@ describe("fetchLista", () => {
     spy.mockRestore();
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("net"));
     expect(await fetchListaCached()).toEqual([]);
+  });
+  it("fetches by commune id and merges commune-first without duplicates", async () => {
+    const comuna = [makeRaw({ id: 3111, commune: "Lo Prado" })];
+    const region = [makeRaw({ id: 3111, commune: "Lo Prado" }), makeRaw({ id: 1001, commune: "Santiago" })];
+    const urls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      urls.push(url);
+      const u = new URL(url);
+      const list = u.searchParams.get("commune") != null ? comuna : region;
+      return { ok: true, json: async () => ({ results: list }) } as Response;
+    });
+    const res = await fetchLista({ commune: 311, region: 1, pageSize: 50, pages: 1 });
+    expect(urls[0]).toContain("commune=311");
+    expect(urls[1]).toContain("region=1");
+    expect(res.map((r) => r.id)).toEqual([3111, 1001]);
+  });
+  it("defaults to RM region when no commune or region given", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      expect(String(input)).toContain("region=1");
+      return { ok: true, json: async () => ({ results: [] }) } as Response;
+    });
+    await fetchLista({ pages: 1 });
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });
 

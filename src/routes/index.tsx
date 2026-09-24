@@ -48,9 +48,9 @@ export const Route = createFileRoute("/")({
   }),
   // Loader runs on the server (SSR) via Nitro/Cloudflare — uses Supabase via server function.
   // Falls back to mock data if SB_* env is not yet configured.
-  // NOTA: externos desactivados en home — ChileCultura trae región equivocada
-  // (Magallanes en vez de RM) y distancia sintética que confunde.
-  // Siguen disponibles aislados en /comparar (tab ChileCultura).
+  // NOTA: home Supabase-only por decisión (Supabase hoy vacío).
+  // ChileCultura vive aislado en /comparar (tab API-only comuna 311 + región RM 1).
+  // Región RM verificada = 1 (el viejo 13 era Magallanes).
   loader: async () => {
     try {
       const actividades = await listarActividades({

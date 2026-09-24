@@ -61,12 +61,23 @@ export const listarActividades = createServerFn({ method: "GET" })
       .object({
         radioMetros: z.number().int().positive().optional(),
         incluirExternos: z.boolean().optional().default(true),
+        /** ChileCultura commune id (micro, ej. Lo Prado 311). Activa orden comuna → región. */
+        communeId: z.number().int().positive().optional(),
+        /** ChileCultura region id (macro, ej. RM 1). */
+        regionId: z.number().int().positive().optional(),
+        /** API-only: salta Supabase y el fallback mock (útil con Supabase vacío). */
+        soloExternos: z.boolean().optional().default(false),
+        /** Páginas API por grupo (50 eventos c/u). */
+        paginas: z.number().int().min(1).max(10).optional().default(2),
       })
       .parse(input ?? {}),
   )
   .handler(async ({ data }): Promise<Actividad[]> => {
-    // 1) Fetch Supabase (or mock fallback) first
+    // 1) Fetch Supabase (or mock fallback) first — skipped in API-only mode
     let base: Actividad[];
+    if (data.soloExternos) {
+      base = [];
+    } else {
     try {
       const { getPublicClient } = await import("./supabase.server");
       let consulta = getPublicClient()
@@ -93,6 +104,7 @@ export const listarActividades = createServerFn({ method: "GET" })
         throw e;
       }
     }
+    }
 
     // 2) Merge ChileCultura external when enabled
     if (!data.incluirExternos) return dedupeSortSlice(base);
@@ -100,7 +112,15 @@ export const listarActividades = createServerFn({ method: "GET" })
     try {
       const { isChileCulturaEnabled, fetchListaCached } = await import("./chilecultura");
       if (!isChileCulturaEnabled()) return dedupeSortSlice(base);
-      const externas = await fetchListaCached();
+      // Orden para la vista: base curada → comuna (micro) → región (macro), cada grupo por fecha/hora
+      if (data.communeId != null || data.soloExternos) {
+        const comunaActs = await fetchListaCached({ ...(data.communeId != null ? { commune: data.communeId } : {}), pages: data.paginas }).catch(() => []);
+        const regionActs = await fetchListaCached({ ...(data.regionId != null ? { region: data.regionId } : {}), pages: data.paginas }).catch(() => []);
+        if (!comunaActs.length && !regionActs.length) return dedupeSortSlice(base);
+        const merged = [...sortPorFecha(base), ...sortPorFecha(comunaActs), ...sortPorFecha(regionActs)];
+        return dedupe(merged).slice(0, 60);
+      }
+      const externas = await fetchListaCached({ ...(data.regionId != null ? { region: data.regionId } : {}), pages: data.paginas });
       // fetchListaCached already maps to Actividad with fuente=chilecultura and synthetic distanciaMetros=1500
       // Graceful fallback: if fetch returns empty, just return base
       if (!externas.length) return dedupeSortSlice(base);
@@ -112,7 +132,11 @@ export const listarActividades = createServerFn({ method: "GET" })
     }
   });
 
-function dedupeSortSlice(list: Actividad[]): Actividad[] {
+function sortPorFecha(list: Actividad[]): Actividad[] {
+  return [...list].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
+}
+
+function dedupe(list: Actividad[]): Actividad[] {
   const seen = new Set<string>();
   const deduped: Actividad[] = [];
   for (const a of list) {
@@ -121,13 +145,12 @@ function dedupeSortSlice(list: Actividad[]): Actividad[] {
       deduped.push(a);
     }
   }
+  return deduped;
+}
+
+function dedupeSortSlice(list: Actividad[]): Actividad[] {
   // Sort by fecha/hora ASC as per spec, then slice 0..50
-  deduped.sort((a, b) => {
-    const d = a.fecha.localeCompare(b.fecha);
-    if (d !== 0) return d;
-    return a.hora.localeCompare(b.hora);
-  });
-  return deduped.slice(0, 50);
+  return dedupe(sortPorFecha(list)).slice(0, 50);
 }
 
 /** Obtiene una actividad publicada por su id. */
@@ -162,28 +185,25 @@ export const obtenerActividad = createServerFn({ method: "GET" })
     if (!data.id.startsWith("ccult-")) return null;
 
     try {
-      const { isChileCulturaEnabled, fetchDetalleCached, fetchLista, mapToActividad, getCached } = await import("./chilecultura");
+      const { isChileCulturaEnabled, fetchDetalleCached, fetchLista, mapToActividad, findCachedActividad } = await import("./chilecultura");
 
       if (!isChileCulturaEnabled()) return null;
 
       // Try to find in cached lista first (fast path — avoids extra fetch)
-      const cachedLista = getCached<Actividad[]>("cc:list:13");
-      if (cachedLista) {
-        const hit = cachedLista.find((a) => a.id === data.id);
-        if (hit) {
-          // Enrich with detail if available
-          const detail = await fetchDetalleCached(data.id).catch(() => null);
-          if (detail && (detail.direccion || detail.precio || detail.latitud || detail.longitud)) {
-            return {
-              ...hit,
-              ...(detail.direccion ? { direccion: detail.direccion } : {}),
-              ...(detail.precio ? { precio: detail.precio } : {}),
-              ...(typeof detail.latitud === "number" ? { latitud: detail.latitud } : {}),
-              ...(typeof detail.longitud === "number" ? { longitud: detail.longitud } : {}),
-            };
-          }
-          return hit;
+      const hit = findCachedActividad(data.id);
+      if (hit) {
+        // Enrich with detail if available
+        const detail = await fetchDetalleCached(data.id).catch(() => null);
+        if (detail && (detail.direccion || detail.precio || detail.latitud || detail.longitud)) {
+          return {
+            ...hit,
+            ...(detail.direccion ? { direccion: detail.direccion } : {}),
+            ...(detail.precio ? { precio: detail.precio } : {}),
+            ...(typeof detail.latitud === "number" ? { latitud: detail.latitud } : {}),
+            ...(typeof detail.longitud === "number" ? { longitud: detail.longitud } : {}),
+          };
         }
+        return hit;
       }
 
       // Otherwise fetch raw list and find matching id

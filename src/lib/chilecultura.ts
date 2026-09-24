@@ -3,11 +3,22 @@
 import type { Actividad } from "@/data/actividades";
 
 export const CHILECULTURA_BASE = "https://chilecultura.gob.cl";
-export const RM_REGION_ID = 13; // spec 13==RM, exploration suggested 1 — confirm before ship
+/** Region IDs are internal sequential PKs (north→south), NOT official codes. Verified 2026-09-24 by probing region=1..20. */
+export const RM_REGION_ID = 1; // Región Metropolitana de Santiago (207 eventos)
+export const LO_PRADO_COMMUNE_ID = 311; // 0 eventos hoy; Santiago=295 (113 eventos)
+/** Verified region id map (probe 2026-09-24). No province level exists in the API. */
+export const REGION_IDS: Record<string, number> = {
+  metropolitana: 1, tarapaca: 2, antofagasta: 3, atacama: 4, coquimbo: 5, valparaiso: 6,
+  ohiggins: 7, maule: 8, biobio: 9, araucania: 10, lagos: 11, aysen: 12,
+  magallanes: 13, rios: 14, arica: 15, nuble: 16,
+};
 export const CHILECULTURA_USER_AGENT = "CiudadVivaMayor/1.0";
 export const LIST_TTL = 6 * 3600 * 1000;
 export const DETAIL_TTL = 24 * 3600 * 1000;
-export const LIST_CACHE_KEY = "cc:list:13";
+export function listCacheKey(commune?: number, region?: number): string {
+  return `cc:list:c${commune ?? "-"}:r${region ?? "-"}`;
+}
+export const LIST_CACHE_KEY = listCacheKey(undefined, RM_REGION_ID);
 export function detailCacheKey(id: string): string { return `cc:detail:${id}`; }
 
 export type RawEvent = {
@@ -89,6 +100,13 @@ export function isCacheValid(key: string, ttl: number): boolean {
   return !!e && Date.now() - e.at < ttl;
 }
 export function getCached<T>(key: string): T | undefined { return (getCache().get(key) as CacheEntry<T> | undefined)?.data; }
+export function findCachedActividad(id: string): Actividad | undefined {
+  for (const key of [listCacheKey(LO_PRADO_COMMUNE_ID, undefined), listCacheKey(undefined, RM_REGION_ID), LIST_CACHE_KEY]) {
+    const hit = getCached<Actividad[]>(key)?.find((a) => a.id === id);
+    if (hit) return hit;
+  }
+  return undefined;
+}
 export function setCached<T>(key: string, data: T): void { getCache().set(key, { at: Date.now(), data }); }
 export function clearCache(): void { getCache().clear(); }
 export function _setCacheEntry<T>(key: string, at: number, data: T): void { getCache().set(key, { at, data } as CacheEntry<unknown>); }
@@ -99,12 +117,11 @@ function assertApexHost(url: string): void {
 }
 function sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
 
-export async function fetchLista(opts?: { region?: number; pageSize?: number; pages?: number }): Promise<RawEvent[]> {
-  if (!isChileCulturaEnabled()) return [];
-  const region = opts?.region ?? RM_REGION_ID, pageSize = opts?.pageSize ?? 50, pages = opts?.pages ?? 2;
+async function fetchPaged(params: { commune?: number; region?: number }, pageSize: number, pages: number): Promise<RawEvent[]> {
+  const qs = params.commune != null ? `commune=${params.commune}` : `region=${params.region}`;
   const results: RawEvent[] = [];
   for (let page = 1; page <= pages; page++) {
-    const url = `${CHILECULTURA_BASE}/api/v1.0/eventos/search?region=${region}&page_size=${pageSize}&page=${page}`;
+    const url = `${CHILECULTURA_BASE}/api/v1.0/eventos/search?${qs}&page_size=${pageSize}&page=${page}`;
     assertApexHost(url);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -118,23 +135,50 @@ export async function fetchLista(opts?: { region?: number; pageSize?: number; pa
     } finally { clearTimeout(timeout); }
     if (page < pages) await sleep(400);
   }
-  return results.slice(0, 100);
+  return results;
 }
 
-export async function fetchListaCached(): Promise<Actividad[]> {
+/**
+ * Lista eventos: primero comuna (micro) y después región (macro), sin duplicados.
+ * La API no soporta texto (search se ignora), nombres de comuna (500) ni provincia.
+ */
+export async function fetchLista(opts?: { region?: number; commune?: number; pageSize?: number; pages?: number }): Promise<RawEvent[]> {
   if (!isChileCulturaEnabled()) return [];
-  if (isCacheValid(LIST_CACHE_KEY, LIST_TTL)) {
-    const c = getCached<Actividad[]>(LIST_CACHE_KEY);
+  const pageSize = opts?.pageSize ?? 50, pages = opts?.pages ?? 2;
+  const commune = opts?.commune;
+  const region = opts?.region ?? (commune == null ? RM_REGION_ID : undefined);
+  const seen = new Set<number>();
+  const out: RawEvent[] = [];
+  const push = (arr: RawEvent[]) => {
+    for (const r of arr) if (!seen.has(r.id)) { seen.add(r.id); out.push(r); }
+  };
+  if (commune != null) push(await fetchPaged({ commune }, pageSize, pages));
+  if (region != null) push(await fetchPaged({ region }, pageSize, pages));
+  return out.slice(0, 150);
+}
+
+export async function fetchListaCached(opts?: { commune?: number; region?: number; pageSize?: number; pages?: number }): Promise<Actividad[]> {
+  if (!isChileCulturaEnabled()) return [];
+  const commune = opts?.commune;
+  const region = opts?.region ?? (commune == null ? RM_REGION_ID : undefined);
+  const key = listCacheKey(commune, region);
+  if (isCacheValid(key, LIST_TTL)) {
+    const c = getCached<Actividad[]>(key);
     if (c) return c;
   }
   try {
-    const raw = await fetchLista();
+    const raw = await fetchLista({
+      ...(commune != null ? { commune } : {}),
+      ...(region != null ? { region } : {}),
+      ...(opts?.pageSize != null ? { pageSize: opts.pageSize } : {}),
+      ...(opts?.pages != null ? { pages: opts.pages } : {}),
+    });
     const acts = raw.map((r) => mapToActividad(r));
-    setCached(LIST_CACHE_KEY, acts);
+    setCached(key, acts);
     return acts;
   } catch (e) {
     console.warn("[chilecultura] fetchListaCached failed — returning cached or empty", e);
-    return getCached<Actividad[]>(LIST_CACHE_KEY) ?? [];
+    return getCached<Actividad[]>(key) ?? [];
   }
 }
 

@@ -78,7 +78,9 @@ function ChileCulturaTab() {
 
   useEffect(() => {
     let alive = true;
-    listarActividades({ data: { incluirExternos: true } })
+    // API-only (Supabase vacío): comuna Lo Prado 311 primero, luego región RM 1.
+    // IDs en src/lib/chilecultura.ts (LO_PRADO_COMMUNE_ID, RM_REGION_ID) — no se importan acá por ser módulo server-only.
+    listarActividades({ data: { incluirExternos: true, soloExternos: true, communeId: 311, regionId: 1, paginas: 5 } })
       .then((todas) => {
         if (!alive) return;
         setActividades(todas.filter((a) => a.fuente === "chilecultura"));
