@@ -79,6 +79,14 @@ describe("mapToActividad", () => {
     const act = mapToActividad(makeRaw({ description: "<p>" + "a".repeat(3000) + "</p>" }));
     expect(act.descripcion.length).toBe(2000);
   });
+  it("passes through single image url and omits empty", () => {
+    const withImg = mapToActividad(makeRaw({ image: "https://chilecultura.gob.cl/uploads/cropped_ABC.png" }));
+    expect(withImg.imagenUrl).toBe("https://chilecultura.gob.cl/uploads/cropped_ABC.png");
+    const emptyImg = mapToActividad(makeRaw({ image: "" }));
+    expect(emptyImg.imagenUrl).toBeUndefined();
+    const blankImg = mapToActividad(makeRaw({ image: "   " }));
+    expect(blankImg.imagenUrl).toBeUndefined();
+  });
 });
 
 describe("parseDetalleHtml", () => {

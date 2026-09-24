@@ -70,12 +70,14 @@ export function mapToActividad(raw: RawEvent, detail?: DetailParsed): Actividad 
   const hora = extractHora(raw.description ?? "") ?? extractHora(descripcion) ?? "11:00";
   const categoria = mapDiscipline(raw.main_discipline ?? "");
   const direccion = detail?.direccion ?? (raw.venue_name && raw.commune ? `${raw.venue_name}, ${raw.commune}` : raw.venue_name || raw.commune || "");
+  const imagenUrl = (raw.image ?? "").trim();
   return {
     id: `ccult-${raw.id}`, nombre: raw.name ?? `Evento ${raw.id}`, fecha: raw.start_date ?? new Date().toISOString().slice(0, 10),
     hora, lugar: raw.venue_name ?? "", direccion, gratuito: Boolean(raw.free),
     ...(detail?.precio ? { precio: detail.precio } : {}), distanciaMetros: 1500,
     bano: "sin_info", estacionamiento: "sin_info", comoLlegar: "", categoria, descripcion,
     fuente: "chilecultura", url: raw.url ?? `${CHILECULTURA_BASE}/events/${raw.id}/`,
+    ...(imagenUrl ? { imagenUrl } : {}),
     ...(typeof detail?.latitud === "number" ? { latitud: detail.latitud } : {}),
     ...(typeof detail?.longitud === "number" ? { longitud: detail.longitud } : {}),
     commune: raw.commune ?? undefined,

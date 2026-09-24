@@ -129,6 +129,14 @@ function ChileCulturaTab() {
           <li key={a.id}>
             <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-2">
+                {a.imagenUrl && (
+                  <img
+                    src={a.imagenUrl}
+                    alt={`Imagen de ${a.nombre}`}
+                    loading="lazy"
+                    className="aspect-video w-full rounded-xl object-cover"
+                  />
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-sm font-bold text-[#EF6C00]">
                     ChileCultura

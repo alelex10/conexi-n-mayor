@@ -27,6 +27,8 @@ export type Actividad = {
   fuente?: string;
   /** Original URL for external events (ChileCultura permalink) */
   url?: string;
+  /** Preview image URL from ChileCultura (single string, may be empty) */
+  imagenUrl?: string;
   /** Latitude from detail page #mapDesktop (WGS84) */
   latitud?: number;
   /** Longitude from detail page #mapDesktop (WGS84) */

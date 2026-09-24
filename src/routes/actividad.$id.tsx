@@ -88,6 +88,15 @@ function Detalle() {
 
       <p className="mt-2 text-lg font-medium text-muted-foreground">{actividad.categoria}</p>
 
+      {actividad.imagenUrl && (
+        <img
+          src={actividad.imagenUrl}
+          alt={`Imagen de ${actividad.nombre}`}
+          loading="lazy"
+          className="mt-4 aspect-video w-full rounded-2xl object-cover"
+        />
+      )}
+
       {actividad.fuente === "chilecultura" && (
         <p className="mt-2 inline-block rounded-lg border border-[#F57C00] bg-[#FFF3E0] px-3 py-1 text-sm font-bold text-[#EF6C00]">
           Fuente: ChileCultura

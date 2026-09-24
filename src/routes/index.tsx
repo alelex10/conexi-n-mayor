@@ -276,6 +276,14 @@ function CiudadVivaMayor() {
                   <li key={a.id}>
                     <article className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
                       <div className="flex flex-col gap-3">
+                        {a.imagenUrl && (
+                          <img
+                            src={a.imagenUrl}
+                            alt={`Imagen de ${a.nombre}`}
+                            loading="lazy"
+                            className="aspect-video w-full rounded-xl object-cover"
+                          />
+                        )}
                         {/* Badges gratuito / categoría / fuente */}
                         <div className="flex flex-wrap items-center gap-2">
                           <span
@@ -429,6 +437,14 @@ function CiudadVivaMayor() {
                 className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm"
               >
                 <div className="flex flex-col gap-3">
+                  {a.imagenUrl && (
+                    <img
+                      src={a.imagenUrl}
+                      alt={`Imagen de ${a.nombre}`}
+                      loading="lazy"
+                      className="aspect-video w-full rounded-xl object-cover"
+                    />
+                  )}
                   <div className="space-y-2">
                     <h3 className="flex items-center gap-2 text-lg font-extrabold leading-tight text-[#EF6C00]">
                       <Clock className="size-5 shrink-0" aria-hidden />
